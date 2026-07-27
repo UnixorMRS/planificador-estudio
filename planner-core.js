@@ -9,7 +9,7 @@ export const DAYS = [
 ];
 
 export const STORAGE_KEY = "planificador-estudio:v2";
-export const STATE_VERSION = 2;
+export const STATE_VERSION = 3;
 
 export function timeToMinutes(value) {
   const [hours, minutes] = value.split(":").map(Number);
@@ -42,6 +42,7 @@ export function createInitialState(plan) {
     topics: [],
     tasks: [],
     studySessions: [],
+    timeEntries: [],
     suggestions: [],
     availability: Object.fromEntries(
       DAYS.map(({ id }) => [
@@ -55,24 +56,122 @@ export function createInitialState(plan) {
 
 export function hydrateState(plan, saved) {
   const initial = createInitialState(plan);
-  if (!saved || saved.version !== STATE_VERSION) return initial;
+  if (!saved) return initial;
+  const migrated = migrateState(saved);
+  if (migrated.version !== STATE_VERSION) return initial;
 
   const selections = { ...initial.selections };
   for (const course of plan.courses) {
-    if (saved.selections?.[course.id]) {
+    if (migrated.selections?.[course.id]) {
       selections[course.id] = {
         ...selections[course.id],
-        ...saved.selections[course.id],
+        ...migrated.selections[course.id],
       };
     }
   }
 
   return {
     ...initial,
-    ...saved,
+    ...migrated,
     selections,
-    availability: { ...initial.availability, ...saved.availability },
+    timeEntries: Array.isArray(migrated.timeEntries) ? migrated.timeEntries : [],
+    availability: { ...initial.availability, ...migrated.availability },
   };
+}
+
+/** Explicit v2 → v3 migration. Planned sessions deliberately create no time. */
+export function migrateState(saved) {
+  if (!saved || typeof saved !== "object") return saved;
+  if (saved.version === 2) {
+    return { ...saved, version: STATE_VERSION, timeEntries: [] };
+  }
+  return saved;
+}
+
+export function isIsoDate(value) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value ?? "")) return false;
+  const [year, month, day] = value.split("-").map(Number);
+  const date = new Date(Date.UTC(year, month - 1, day));
+  return date.getUTCFullYear() === year &&
+    date.getUTCMonth() === month - 1 && date.getUTCDate() === day;
+}
+
+export function validateTimeEntry(plan, entry) {
+  const course = plan.courses.find(({ id }) => id === entry?.courseId);
+  if (!entry?.id) throw new Error("El registro necesita un identificador.");
+  if (!course) throw new Error("El registro contiene una asignatura desconocida.");
+  if (![1, 2].includes(Number(entry.term)) || course.term !== Number(entry.term)) {
+    throw new Error("La asignatura no pertenece al cuatrimestre del registro.");
+  }
+  if (!isIsoDate(entry.date)) throw new Error("La fecha del registro no es válida.");
+  if (!Number.isFinite(Number(entry.minutes)) || Number(entry.minutes) <= 0) {
+    throw new Error("Los minutos deben ser positivos.");
+  }
+  if (!entry.createdAt || !Number.isFinite(Date.parse(entry.createdAt)) ||
+      !entry.updatedAt || !Number.isFinite(Date.parse(entry.updatedAt))) {
+    throw new Error("Las fechas de creación y actualización no son válidas.");
+  }
+  return { ...entry, term: Number(entry.term), minutes: Number(entry.minutes), note: String(entry.note ?? "") };
+}
+
+export function createTimeEntry(plan, input, now = new Date()) {
+  const timestamp = now.toISOString();
+  return validateTimeEntry(plan, {
+    id: input.id ?? cryptoSafeId("time"),
+    courseId: input.courseId,
+    term: Number(input.term),
+    date: input.date,
+    minutes: Number(input.minutes),
+    ...(input.sourceSessionId ? { sourceSessionId: input.sourceSessionId } : {}),
+    note: input.note ?? "",
+    createdAt: input.createdAt ?? timestamp,
+    updatedAt: timestamp,
+  });
+}
+
+export function elapsedMinutes(start, end) {
+  const duration = end - start;
+  return duration > 0 ? duration : duration + 24 * 60;
+}
+
+function sumEntries(entries) {
+  return entries.reduce((total, { minutes }) => total + Number(minutes), 0);
+}
+
+function groupMinutes(entries, keyFor) {
+  return entries.reduce((result, entry) => {
+    const key = keyFor(entry);
+    result[key] = (result[key] ?? 0) + Number(entry.minutes);
+    return result;
+  }, {});
+}
+
+export function aggregateTimeByCourse(entries) {
+  return groupMinutes(entries, ({ courseId }) => courseId);
+}
+
+export function isoWeekKey(dateValue) {
+  const date = new Date(`${dateValue}T00:00:00Z`);
+  date.setUTCDate(date.getUTCDate() + 4 - (date.getUTCDay() || 7));
+  const year = date.getUTCFullYear();
+  const yearStart = new Date(Date.UTC(year, 0, 1));
+  const week = Math.ceil((((date - yearStart) / 86_400_000) + 1) / 7);
+  return `${year}-W${String(week).padStart(2, "0")}`;
+}
+
+export function aggregateTimeByIsoWeek(entries) {
+  return groupMinutes(entries, ({ date }) => isoWeekKey(date));
+}
+
+export function aggregateTimeByDateRange(entries, start, end) {
+  if (!isIsoDate(start) || !isIsoDate(end) || start > end) {
+    throw new Error("El intervalo de fechas no es válido.");
+  }
+  return sumEntries(entries.filter(({ date }) => date >= start && date <= end));
+}
+
+export function aggregateTimeByTerm(entries) {
+  return groupMinutes(entries, ({ term }) => String(term));
 }
 
 export function getCourseSessions(course, selection) {
@@ -338,10 +437,21 @@ export function validateImportedState(plan, value) {
   if (!value || typeof value !== "object") {
     throw new Error("El archivo no contiene un estado válido.");
   }
-  if (value.version !== STATE_VERSION) {
+  if (![2, STATE_VERSION].includes(value.version)) {
     throw new Error("La versión de la copia no es compatible.");
   }
   const hydrated = hydrateState(plan, value);
+  const sourceSessionIds = new Set();
+  hydrated.timeEntries = hydrated.timeEntries.map((entry) => {
+    const validated = validateTimeEntry(plan, entry);
+    if (validated.sourceSessionId) {
+      if (sourceSessionIds.has(validated.sourceSessionId)) {
+        throw new Error("Una sesión de estudio aparece contabilizada más de una vez.");
+      }
+      sourceSessionIds.add(validated.sourceSessionId);
+    }
+    return validated;
+  });
   for (const course of plan.courses) {
     const selection = hydrated.selections[course.id];
     const optionIsValid =
