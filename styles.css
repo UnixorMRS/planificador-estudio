@@ -119,6 +119,15 @@ h2 { margin-bottom: 0; font-size: 1.25rem; letter-spacing: -0.02em; }
 .course-name { margin: 0.14rem 0 0.5rem; overflow: hidden; color: var(--muted); font-size: 0.78rem; text-overflow: ellipsis; white-space: nowrap; }
 .course-meta { display: flex; flex-wrap: wrap; gap: 0.3rem; }
 .course-select { width: 100%; margin-top: 0.6rem; padding: 0.52rem; border: 1px solid var(--line); border-radius: 8px; color: var(--ink); background: white; }
+.course-options, .course-option__sessions { margin: 0; padding: 0; list-style: none; }
+.course-options { display: grid; gap: 0.3rem; margin-top: 0.45rem; }
+.course-option { padding: 0.38rem 0.45rem; border: 1px solid var(--line); border-radius: 7px; background: #fbfcff; }
+.course-option.is-selected { border-color: #a99cf1; background: var(--soft-primary); box-shadow: inset 3px 0 var(--primary); }
+.course-option__heading { display: flex; flex-wrap: wrap; align-items: center; gap: 0.3rem; font-size: 0.68rem; }
+.course-option__selected { color: var(--primary-dark); font-weight: 750; }
+.course-option__conflict { margin-left: auto; color: var(--danger); font-weight: 800; }
+.course-option__sessions { margin-top: 0.18rem; color: var(--muted); font-size: 0.64rem; line-height: 1.35; }
+.course-options-empty { margin: 0.45rem 0 0; color: var(--muted); font-size: 0.68rem; font-style: italic; }
 .tag { display: inline-flex; align-items: center; padding: 0.22rem 0.48rem; border-radius: 999px; font-size: 0.66rem; font-weight: 750; }
 .tag--pending { background: #fff3dc; color: #9a5900; }
 .tag--planned { background: #eeeaff; color: #543cc2; }

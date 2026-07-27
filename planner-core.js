@@ -142,6 +142,44 @@ export function findConflicts(sessions, acceptedIds = []) {
   return conflicts;
 }
 
+/**
+ * Describe every possible group for a course without changing the current
+ * selection. Conflicts are limited to overlaps introduced by the evaluated
+ * course, so an unrelated clash elsewhere in the timetable is not attributed
+ * to each alternative.
+ */
+export function evaluateCourseAlternatives(
+  plan,
+  state,
+  courseId,
+  term = state.term,
+) {
+  const course = plan.courses.find(({ id }) => id === courseId);
+  if (!course || course.term !== term) return [];
+
+  const otherSessions = plan.courses
+    .filter(({ id, term: courseTerm }) => id !== courseId && courseTerm === term)
+    .flatMap((otherCourse) =>
+      getCourseSessions(otherCourse, state.selections[otherCourse.id]),
+    );
+
+  return (course.options ?? []).map((option) => {
+    const sessions = getCourseSessions(course, {
+      ...state.selections[courseId],
+      active: true,
+      optionId: option.id,
+    });
+    const conflicts = findConflicts(
+      [...otherSessions, ...sessions],
+      state.acceptedConflictIds,
+    ).filter(
+      ({ first, second }) =>
+        first.courseId === courseId || second.courseId === courseId,
+    );
+    return { ...option, sessions: option.sessions ?? [], conflicts };
+  });
+}
+
 export function canAwardElective(plan, state, courseId) {
   const course = plan.courses.find(({ id }) => id === courseId);
   if (!course || course.type !== "elective") return false;

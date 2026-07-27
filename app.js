@@ -5,6 +5,7 @@ import {
   createInitialState,
   cryptoSafeId,
   electiveCredits,
+  evaluateCourseAlternatives,
   findConflicts,
   generateStudySuggestions,
   getActiveSessions,
@@ -113,6 +114,39 @@ function renderCourses() {
               .join("")}
           </select>`
         : "";
+      const alternatives =
+        course.type === "required"
+          ? evaluateCourseAlternatives(plan, state, course.id)
+          : [];
+      const optionList = alternatives.length
+        ? `<ul class="course-options" aria-label="Opciones de ${escapeHtml(course.name)}">
+            ${alternatives
+              .map((option) => {
+                const selected = selection.optionId === option.id;
+                return `<li class="course-option ${selected ? "is-selected" : ""}">
+                  <div class="course-option__heading">
+                    <strong>${escapeHtml(option.label)}</strong>
+                    ${selected ? '<span class="course-option__selected">Seleccionada</span>' : ""}
+                    ${option.conflicts.length ? `<span class="course-option__conflict" role="status" aria-label="Esta opción provoca ${option.conflicts.length} ${option.conflicts.length === 1 ? "solape" : "solapes"}">⚠ ${option.conflicts.length === 1 ? "Solape" : `${option.conflicts.length} solapes`}</span>` : ""}
+                  </div>
+                  <ul class="course-option__sessions">
+                    ${option.sessions
+                      .map((session) => {
+                        const day = DAYS.find(({ id }) => id === session.day);
+                        return `<li>${escapeHtml(day?.short ?? "Día")} · ${minutesToTime(session.start)}–${minutesToTime(session.end)} · ${escapeHtml(session.room ?? "Aula por confirmar")}</li>`;
+                      })
+                      .join("")}
+                  </ul>
+                </li>`;
+              })
+              .join("")}
+          </ul>`
+        : course.type === "required" &&
+            (course.commonSessions ?? []).some((session) =>
+              session.component?.toLocaleLowerCase("es").includes("práctica"),
+            )
+          ? '<p class="course-options-empty">Sin grupos alternativos; práctica común</p>'
+          : "";
       return `
         <article class="course-card">
           <div class="course-head">
@@ -128,7 +162,7 @@ function renderCourses() {
                 <span class="tag tag--${tagType}">${tagText}</span>
                 ${isElective ? `<span class="tag tag--elective">${selection.active ? "Adjudicada" : "Solicitada"}</span>` : ""}
               </div>
-              ${selection.active ? optionSelect : ""}
+              ${selection.active ? `${optionSelect}${optionList}` : ""}
             </div>
           </div>
         </article>`;
