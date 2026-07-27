@@ -44,6 +44,68 @@ test("enlaza los selectores de cuatrimestre y los días mensuales", async () => 
   assert.match(source, /openCalendarActivityForm\(activityDate\)/);
 });
 
+test("el cambio de cuatrimestre vuelve a renderizar el glosario con sus asignaturas", async () => {
+  const [source, plan] = await Promise.all([
+    readFile(new URL("../app.js", import.meta.url), "utf8"),
+    readFile(new URL("../data/planificacion.json", import.meta.url), "utf8").then(JSON.parse),
+  ]);
+  const functionSource = (name) => {
+    const start = source.indexOf(`function ${name}(`);
+    assert.notEqual(start, -1, `falta la función ${name}`);
+    const bodyStart = source.indexOf("{", start);
+    let depth = 0;
+    for (let index = bodyStart; index < source.length; index += 1) {
+      if (source[index] === "{") depth += 1;
+      if (source[index] === "}") depth -= 1;
+      if (depth === 0) return source.slice(start, index + 1);
+    }
+    assert.fail(`no se pudo extraer la función ${name}`);
+  };
+  const topicGlossaryList = { innerHTML: "" };
+  const selectTerm = Function(
+    "plan",
+    "state",
+    "elements",
+    "topicProgress",
+    "escapeHtml",
+    "syncTermInterface",
+    "renderCourses",
+    "renderGuides",
+    "renderForms",
+    "renderMetrics",
+    "saveState",
+    `${functionSource("renderTopicGlossaries")}\n${functionSource("selectTerm")}\nreturn selectTerm;`,
+  )(
+    plan,
+    { term: 1, topics: [] },
+    { topicGlossaryList },
+    () => 0,
+    (value = "") => String(value),
+    () => {},
+    () => {},
+    () => {},
+    () => {},
+    () => {},
+    () => {},
+  );
+
+  for (const term of [2, 1]) {
+    selectTerm(term);
+    const visibleCourses = plan.courses.filter((course) => course.term === term);
+    const hiddenCourses = plan.courses.filter((course) => course.term !== term);
+    assert.equal(
+      [...topicGlossaryList.innerHTML.matchAll(/class="glossary-card"/g)].length,
+      visibleCourses.length,
+    );
+    for (const course of visibleCourses) {
+      assert.ok(topicGlossaryList.innerHTML.includes(`>${course.name}<`));
+    }
+    for (const course of hiddenCourses) {
+      assert.ok(!topicGlossaryList.innerHTML.includes(`>${course.name}<`));
+    }
+  }
+});
+
 test("todas las asignaturas ofrecen una guía HTTPS oficial de la UGR", async () => {
   const data = JSON.parse(
     await readFile(new URL("../data/planificacion.json", import.meta.url), "utf8"),

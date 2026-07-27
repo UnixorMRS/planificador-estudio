@@ -116,6 +116,7 @@ function selectTerm(term) {
   renderCourses();
   renderGuides();
   renderForms();
+  renderTopicGlossaries();
   renderMetrics();
   saveState();
 }
