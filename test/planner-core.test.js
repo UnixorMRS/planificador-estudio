@@ -6,6 +6,7 @@ import {
   canAwardElective,
   createInitialState,
   electiveCredits,
+  evaluateCourseAlternatives,
   findConflicts,
   generateStudySuggestions,
   getActiveSessions,
@@ -74,6 +75,34 @@ test("un subgrupo de IS añade solamente su práctica", () => {
   );
   assert.equal(sessions.length, 1);
   assert.match(sessions[0].component, /Práctica/);
+});
+
+test("las alternativas conservan todas las sesiones de un grupo", () => {
+  const state = createInitialState(plan);
+  const alternatives = evaluateCourseAlternatives(plan, state, "ddsi", 1);
+  const a2 = alternatives.find(({ id }) => id === "a2");
+  assert.equal(a2.sessions.length, 2);
+  assert.equal(new Set(a2.sessions.map(({ day }) => day)).size, 2);
+});
+
+test("una asignatura sin alternativas devuelve una lista vacía", () => {
+  const state = createInitialState(plan);
+  assert.deepEqual(
+    evaluateCourseAlternatives(plan, state, "functional-analysis", 1),
+    [],
+  );
+});
+
+test("evalúa conflictos potenciales sin modificar la selección", () => {
+  const state = createInitialState(plan);
+  const selectedBefore = state.selections.ec.optionId;
+  const [alternative] = evaluateCourseAlternatives(plan, state, "ec", 1);
+  assert.ok(
+    alternative.conflicts.some(
+      ({ id }) => id === "af-friday::ec-b2-practice",
+    ),
+  );
+  assert.equal(state.selections.ec.optionId, selectedBefore);
 });
 
 test("el generador evita clases y usa tareas de asignaturas activas", () => {
