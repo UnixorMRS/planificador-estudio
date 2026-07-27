@@ -46,6 +46,32 @@
         </div>
       </section>
 
+      <section class="academic-overview" aria-labelledby="academic-overview-title">
+        <div class="overview-heading">
+          <div>
+            <p class="section-label">Horario del curso completo</p>
+            <h2 id="academic-overview-title">Clases y calendario académico</h2>
+          </div>
+          <p>Los dos cuatrimestres están siempre visibles. Selecciona los grupos más abajo y el horario se actualizará al instante.</p>
+        </div>
+        <article class="term-overview" data-term-overview="1">
+          <div class="term-overview__heading">
+            <div><span class="term-number">01</span><div><p class="section-label">Septiembre — diciembre</p><h3>Primer cuatrimestre</h3></div></div>
+            <button class="button button--ghost" type="button" data-manage-term="1">Gestionar asignaturas</button>
+          </div>
+          <div class="calendar-scroll"><div id="calendar-term-1" class="calendar academic-calendar" aria-label="Horario semanal del primer cuatrimestre"></div></div>
+          <div id="months-term-1" class="term-months" aria-label="Meses del primer cuatrimestre"></div>
+        </article>
+        <article class="term-overview" data-term-overview="2">
+          <div class="term-overview__heading">
+            <div><span class="term-number">02</span><div><p class="section-label">Febrero — junio</p><h3>Segundo cuatrimestre</h3></div></div>
+            <button class="button button--ghost" type="button" data-manage-term="2">Gestionar asignaturas</button>
+          </div>
+          <div class="calendar-scroll"><div id="calendar-term-2" class="calendar academic-calendar" aria-label="Horario semanal del segundo cuatrimestre"></div></div>
+          <div id="months-term-2" class="term-months" aria-label="Meses del segundo cuatrimestre"></div>
+        </article>
+      </section>
+
       <section class="metrics" aria-label="Resumen del plan">
         <article>
           <span class="metric-icon metric-icon--violet">◫</span>
@@ -67,7 +93,7 @@
 
       <div id="notice" class="notice" role="status" hidden></div>
 
-      <section class="workspace">
+      <section class="workspace" id="planning-options">
         <aside class="sidebar">
           <div class="section-heading">
             <div>
@@ -79,29 +105,12 @@
           <div id="course-list" class="course-list"></div>
         </aside>
 
-        <section class="calendar-panel">
-          <div class="section-heading section-heading--calendar">
-            <div>
-              <p class="section-label">Vista semanal</p>
-              <h2 id="calendar-title">Horario académico</h2>
-            </div>
-            <div class="view-switch" aria-label="Contenido del calendario">
-              <button type="button" class="is-active" data-view="classes">Clases</button>
-              <button type="button" data-view="all">Clases + estudio</button>
-            </div>
-          </div>
+        <section class="calendar-panel options-intro">
+          <div class="section-heading"><div><p class="section-label">Personaliza tu plan</p><h2>Opciones del cuatrimestre</h2></div></div>
           <div id="conflict-summary"></div>
-          <div class="date-navigation">
-            <button class="button button--ghost" id="previous-week" type="button">← Semana</button>
-            <strong id="week-label"></strong>
-            <button class="button button--ghost" id="next-week" type="button">Semana →</button>
-          </div>
-          <div class="calendar-scroll">
-            <div id="calendar" class="calendar" aria-label="Calendario semanal"></div>
-          </div>
-          <div class="month-block">
-            <h3 id="month-label">Mes</h3>
-            <div id="month-calendar" class="month-calendar" aria-label="Resumen mensual"></div>
+          <div class="options-copy">
+            <p>Activa las optativas adjudicadas y escoge tus grupos. Después añade temario, entregas, exámenes y sesiones de estudio en los paneles siguientes.</p>
+            <button class="button" type="button" data-jump-to="task-form">Añadir una tarea o examen</button>
           </div>
         </section>
       </section>
