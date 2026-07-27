@@ -5,61 +5,186 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta
       name="description"
-      content="Planificador de estudio para organizar asignaturas y próximas tareas."
+      content="Planificador académico y de estudio para el curso 2026/27."
     />
-    <title>Mi plan de estudio</title>
+    <title>Plan de estudio · 2026/27</title>
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
-    <header class="site-header">
-      <div class="container">
-        <p class="eyebrow">Organiza tu semana</p>
-        <h1>Mi plan de estudio</h1>
-        <p class="intro">
-          Un espacio sencillo para mantener tus asignaturas y tareas a la vista.
-        </p>
-      </div>
+    <header class="topbar">
+      <a class="brand" href="#inicio" aria-label="Ir al inicio">
+        <span class="brand-mark">P</span>
+        <span><strong>Plan de estudio</strong><small>Curso 2026/27</small></span>
+      </a>
+      <nav class="top-actions" aria-label="Acciones de datos">
+        <button class="button button--ghost" id="settings-button" type="button">
+          Disponibilidad
+        </button>
+        <button class="button button--ghost" id="export-button" type="button">
+          Exportar
+        </button>
+        <label class="button button--ghost file-button">
+          Importar
+          <input id="import-input" type="file" accept="application/json" />
+        </label>
+      </nav>
     </header>
 
-    <main class="container dashboard">
-      <section class="panel" aria-labelledby="subjects-title">
-        <div class="panel-heading">
-          <div>
-            <p class="section-label">Tus materias</p>
-            <h2 id="subjects-title">Asignaturas</h2>
-          </div>
-          <button class="button" type="button">Añadir asignatura</button>
+    <main id="inicio" class="app-shell">
+      <section class="hero">
+        <div>
+          <p class="eyebrow">Planificación académica viva</p>
+          <h1>Tu semana, sin dar nada por adjudicado.</h1>
+          <p class="hero-copy">
+            Elige grupos reales, detecta cruces y convierte tareas y avances en
+            sesiones de estudio ajustables.
+          </p>
         </div>
-
-        <div class="empty-state">
-          <span class="empty-icon" aria-hidden="true">📚</span>
-          <h3>Empieza por una asignatura</h3>
-          <p>Aquí aparecerán las materias que quieras incluir en tu plan.</p>
+        <div class="term-switch" aria-label="Seleccionar cuatrimestre">
+          <button data-term="1" class="is-active" type="button">1.º cuatrimestre</button>
+          <button data-term="2" type="button">2.º cuatrimestre</button>
         </div>
       </section>
 
-      <aside class="panel" aria-labelledby="tasks-title">
-        <div class="panel-heading">
-          <div>
-            <p class="section-label">Lo siguiente</p>
-            <h2 id="tasks-title">Próximas tareas</h2>
-          </div>
-        </div>
+      <section class="metrics" aria-label="Resumen del plan">
+        <article>
+          <span class="metric-icon metric-icon--violet">◫</span>
+          <div><strong id="metric-active">0</strong><span>Asignaturas activas</span></div>
+        </article>
+        <article>
+          <span class="metric-icon metric-icon--orange">◇</span>
+          <div><strong id="metric-credits">0/24</strong><span>Créditos optativos</span></div>
+        </article>
+        <article>
+          <span class="metric-icon metric-icon--red">!</span>
+          <div><strong id="metric-conflicts">0</strong><span>Conflictos abiertos</span></div>
+        </article>
+        <article>
+          <span class="metric-icon metric-icon--green">✓</span>
+          <div><strong id="metric-tasks">0</strong><span>Tareas pendientes</span></div>
+        </article>
+      </section>
 
-        <div class="empty-state empty-state--compact">
-          <span class="empty-icon" aria-hidden="true">✓</span>
-          <h3>Todo al día</h3>
-          <p>Tus próximas sesiones de estudio se mostrarán aquí.</p>
+      <div id="notice" class="notice" role="status" hidden></div>
+
+      <section class="workspace">
+        <aside class="sidebar">
+          <div class="section-heading">
+            <div>
+              <p class="section-label">Matrícula y grupos</p>
+              <h2>Asignaturas</h2>
+            </div>
+            <span id="term-state" class="tag tag--pending">Provisional</span>
+          </div>
+          <div id="course-list" class="course-list"></div>
+        </aside>
+
+        <section class="calendar-panel">
+          <div class="section-heading section-heading--calendar">
+            <div>
+              <p class="section-label">Vista semanal</p>
+              <h2 id="calendar-title">Horario académico</h2>
+            </div>
+            <div class="view-switch" aria-label="Contenido del calendario">
+              <button type="button" class="is-active" data-view="classes">Clases</button>
+              <button type="button" data-view="all">Clases + estudio</button>
+            </div>
+          </div>
+          <div id="conflict-summary"></div>
+          <div class="calendar-scroll">
+            <div id="calendar" class="calendar" aria-label="Calendario semanal"></div>
+          </div>
+        </section>
+      </section>
+
+      <section class="lower-grid">
+        <article class="panel">
+          <div class="section-heading">
+            <div>
+              <p class="section-label">Comprensión real</p>
+              <h2>Temario y dominio</h2>
+            </div>
+          </div>
+          <form id="topic-form" class="compact-form">
+            <label>Asignatura<select name="courseId" required></select></label>
+            <label class="field-grow">Tema<input name="name" required placeholder="p. ej. Memoria caché" /></label>
+            <label>Dificultad<select name="difficulty">
+              <option value="1">1</option><option value="2">2</option>
+              <option value="3" selected>3</option><option value="4">4</option>
+              <option value="5">5</option>
+            </select></label>
+            <button class="button" type="submit">Añadir</button>
+          </form>
+          <div id="topic-list" class="item-list empty-copy">Aún no hay temas.</div>
+        </article>
+
+        <article class="panel">
+          <div class="section-heading">
+            <div>
+              <p class="section-label">Fechas y carga</p>
+              <h2>Tareas y exámenes</h2>
+            </div>
+          </div>
+          <form id="task-form" class="compact-form task-form">
+            <label>Tipo<select name="type"><option value="task">Tarea</option><option value="exam">Examen</option></select></label>
+            <label>Asignatura<select name="courseId" required></select></label>
+            <label class="field-grow">Título<input name="title" required placeholder="Práctica 1" /></label>
+            <label>Fecha<input name="dueAt" type="date" required /></label>
+            <label>Horas<input name="hours" type="number" min="0.5" step="0.5" value="2" required /></label>
+            <label>Importancia<select name="importance"><option>1</option><option>2</option><option selected>3</option><option>4</option><option>5</option></select></label>
+            <button class="button" type="submit">Añadir</button>
+          </form>
+          <div id="task-list" class="item-list empty-copy">Aún no hay tareas ni exámenes.</div>
+        </article>
+      </section>
+
+      <section class="panel study-panel">
+        <div class="section-heading">
+          <div>
+            <p class="section-label">Sugerencias explicables</p>
+            <h2>Horario de estudio</h2>
+          </div>
+          <button id="generate-button" class="button" type="button">Generar semana</button>
         </div>
-      </aside>
+        <div id="regeneration-banner" class="regeneration-banner" hidden>
+          Tus datos han cambiado. Conviene recalcular las sugerencias.
+          <button id="recalculate-button" type="button">Recalcular</button>
+        </div>
+        <div id="suggestion-list" class="suggestion-grid empty-copy">
+          Añade temas o tareas para generar bloques de estudio.
+        </div>
+      </section>
     </main>
 
-    <footer class="site-footer">
-      <div class="container">
-        <p>Planificador de estudio · Construye tu rutina paso a paso.</p>
-      </div>
-    </footer>
+    <dialog id="settings-dialog">
+      <form method="dialog" class="dialog-card">
+        <div class="section-heading">
+          <div><p class="section-label">Huecos disponibles</p><h2>Disponibilidad semanal</h2></div>
+          <button class="icon-button" value="cancel" aria-label="Cerrar">×</button>
+        </div>
+        <p class="muted">Las clases y sesiones aceptadas se descuentan automáticamente.</p>
+        <div id="availability-fields" class="availability-fields"></div>
+        <button id="save-settings" class="button" value="default">Guardar cambios</button>
+      </form>
+    </dialog>
 
-    <script src="app.js"></script>
+    <dialog id="recalc-dialog">
+      <div class="dialog-card dialog-card--small">
+        <p class="section-label">Recalcular horario</p>
+        <h2>¿Qué hacemos con las sesiones aceptadas?</h2>
+        <p class="muted">Puedes conservarlas o rehacer por completo la semana.</p>
+        <div class="dialog-actions">
+          <button class="button" id="keep-sessions" type="button">Conservarlas</button>
+          <button class="button button--danger" id="rebuild-sessions" type="button">Rehacer semana</button>
+          <button class="button button--ghost" id="cancel-recalc" type="button">Cancelar</button>
+        </div>
+      </div>
+    </dialog>
+
+    <footer>
+      <p>Los horarios son provisionales hasta confirmar matrícula y subgrupos.</p>
+      <button id="reset-button" class="text-button" type="button">Restaurar datos iniciales</button>
+    </footer>
+    <script type="module" src="app.js"></script>
   </body>
 </html>
