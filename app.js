@@ -55,7 +55,6 @@ const elements = {
   topicForm: document.querySelector("#topic-form"),
   topicList: document.querySelector("#topic-list"),
   topicGlossaryList: document.querySelector("#topic-glossary-list"),
-  officialLinkList: document.querySelector("#official-link-list"),
   taskForm: document.querySelector("#task-form"),
   taskList: document.querySelector("#task-list"),
   suggestionList: document.querySelector("#suggestion-list"),
@@ -473,12 +472,6 @@ function renderTopics() {
     .join("");
 }
 
-function renderOfficialLinks() {
-  elements.officialLinkList.innerHTML = plan.sources.map((source) =>
-    `<a href="${escapeHtml(source.url)}" target="_blank" rel="noreferrer">${escapeHtml(source.name)} <span aria-hidden="true">↗</span></a>`,
-  ).join("");
-}
-
 function renderTopicGlossaries() {
   const courses = plan.courses.filter((course) => course.term === state.term);
   elements.topicGlossaryList.innerHTML = courses.map((course) => {
@@ -615,7 +608,6 @@ function render() {
   renderForms();
   renderTopics();
   renderTopicGlossaries();
-  renderOfficialLinks();
   renderTasks();
   renderSuggestions();
   renderMetrics();
