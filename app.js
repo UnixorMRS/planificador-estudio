@@ -4,6 +4,7 @@ import {
   activitiesForWeek,
   addCalendarDays,
   canAwardElective,
+  createTimeEntry,
   createInitialState,
   createActivity,
   cryptoSafeId,
@@ -29,6 +30,7 @@ import {
   startOfWeek,
   updateActivity,
   validateImportedState,
+  validateTimeEntry,
   validatePlan,
   weekDatesForTerm,
 } from "./planner-core.js";
@@ -51,6 +53,8 @@ const elements = {
   topicList: document.querySelector("#topic-list"),
   taskForm: document.querySelector("#task-form"),
   taskList: document.querySelector("#task-list"),
+  timeForm: document.querySelector("#time-form"),
+  timeEntryList: document.querySelector("#time-entry-list"),
   suggestionList: document.querySelector("#suggestion-list"),
   generateButton: document.querySelector("#generate-button"),
   regenerationBanner: document.querySelector("#regeneration-banner"),
@@ -420,16 +424,48 @@ function renderForms() {
   const options = courseOptions();
   const topicSelect = elements.topicForm.elements.courseId;
   const taskSelect = elements.taskForm.elements.courseId;
+  const timeSelect = elements.timeForm.elements.courseId;
   const topicValue = topicSelect.value;
   const taskValue = taskSelect.value;
+  const timeValue = timeSelect.value;
   topicSelect.innerHTML = options;
   taskSelect.innerHTML = options;
+  timeSelect.innerHTML = plan.courses
+    .filter((course) => course.term === state.term)
+    .map((course) => `<option value="${course.id}">${escapeHtml(course.abbreviation)} · ${escapeHtml(course.name)}</option>`)
+    .join("");
   if ([...topicSelect.options].some((option) => option.value === topicValue)) {
     topicSelect.value = topicValue;
   }
   if ([...taskSelect.options].some((option) => option.value === taskValue)) {
     taskSelect.value = taskValue;
   }
+  if ([...timeSelect.options].some((option) => option.value === timeValue)) {
+    timeSelect.value = timeValue;
+  }
+  if (!elements.timeForm.elements.date.value) {
+    elements.timeForm.elements.date.value = new Date().toISOString().slice(0, 10);
+  }
+}
+
+function renderTimeEntries() {
+  const entries = state.timeEntries
+    .filter(({ term }) => term === state.term)
+    .sort((a, b) => b.date.localeCompare(a.date));
+  document.querySelector("#time-total").textContent =
+    `${entries.reduce((total, entry) => total + entry.minutes, 0)} min`;
+  elements.timeEntryList.className = entries.length ? "item-list" : "item-list empty-copy";
+  elements.timeEntryList.innerHTML = entries.map((entry) => {
+    const course = courseById(entry.courseId);
+    return `<div class="list-item">
+      <div><strong>${entry.minutes} min · ${escapeHtml(course?.abbreviation ?? "")}</strong>
+      <small>${entry.date}${entry.note ? ` · ${escapeHtml(entry.note)}` : ""}${entry.sourceSessionId ? " · sesión confirmada" : " · manual"}</small></div>
+      <div class="item-actions">
+        <button class="button button--small button--ghost" data-edit-time="${entry.id}">Corregir</button>
+        <button class="icon-button" data-delete-time="${entry.id}" aria-label="Eliminar registro">×</button>
+      </div>
+    </div>`;
+  }).join("") || "Aún no hay tiempo confirmado.";
 }
 
 function renderTopics() {
@@ -508,7 +544,8 @@ function suggestionCard(session, accepted = false) {
       <span class="item-actions">
         ${
           accepted
-            ? `<button class="button button--small button--ghost" data-edit-session="${session.id}">Editar</button>
+            ? `<button class="button button--small" data-complete-session="${session.id}" ${state.timeEntries.some(({ sourceSessionId }) => sourceSessionId === session.id) ? "disabled" : ""}>${state.timeEntries.some(({ sourceSessionId }) => sourceSessionId === session.id) ? "Realizada" : "Marcar realizada"}</button>
+               <button class="button button--small button--ghost" data-edit-session="${session.id}">Editar</button>
                <button class="icon-button" data-delete-session="${session.id}" aria-label="Eliminar sesión">×</button>`
             : `<button class="button button--small" data-accept-suggestion="${session.id}">Aceptar</button>
                <button class="icon-button" data-dismiss-suggestion="${session.id}" aria-label="Descartar sugerencia">×</button>`
@@ -584,6 +621,7 @@ function render() {
   renderTopics();
   renderTasks();
   renderSuggestions();
+  renderTimeEntries();
   renderMetrics();
   renderAvailability();
 }
@@ -619,6 +657,24 @@ document.addEventListener("click", (event) => {
       const term = getAcademicTerm(plan, state.term);
       state.calendarWeeks[state.term] = firstWeekOfTerm(term);
     });
+    return;
+  }
+
+  const completeSession = event.target.closest("[data-complete-session]");
+  if (completeSession) {
+    confirmStudySession(completeSession.dataset.completeSession);
+    return;
+  }
+
+  const editTime = event.target.closest("[data-edit-time]");
+  if (editTime) {
+    editTimeEntry(editTime.dataset.editTime);
+    return;
+  }
+
+  const deleteTime = event.target.closest("[data-delete-time]");
+  if (deleteTime) {
+    update(() => { state.timeEntries = state.timeEntries.filter(({ id }) => id !== deleteTime.dataset.deleteTime); });
     return;
   }
 
@@ -901,6 +957,53 @@ elements.taskForm.addEventListener("submit", (event) => {
     announce(error.message);
   }
 });
+
+elements.timeForm.addEventListener("submit", (event) => {
+  event.preventDefault();
+  const data = new FormData(event.currentTarget);
+  try {
+    const entry = createTimeEntry(plan, {
+      courseId: data.get("courseId"), term: state.term, date: data.get("date"),
+      minutes: data.get("minutes"), note: data.get("note").trim(),
+    });
+    update(() => state.timeEntries.push(entry));
+    event.currentTarget.elements.minutes.value = "";
+    event.currentTarget.elements.note.value = "";
+  } catch (error) { announce(error.message); }
+});
+
+function confirmStudySession(id) {
+  const session = state.studySessions.find((item) => item.id === id);
+  if (!session || state.timeEntries.some(({ sourceSessionId }) => sourceSessionId === id)) {
+    announce("Esta sesión ya está contabilizada.");
+    return;
+  }
+  const date = window.prompt("Fecha real (AAAA-MM-DD):", new Date().toISOString().slice(0, 10));
+  if (!date) return;
+  const minutes = window.prompt("Duración real en minutos:", String(session.end - session.start));
+  if (!minutes) return;
+  try {
+    const entry = createTimeEntry(plan, {
+      courseId: session.courseId, term: session.term, date, minutes,
+      sourceSessionId: session.id, note: session.title,
+    });
+    update(() => state.timeEntries.push(entry));
+  } catch (error) { announce(error.message); }
+}
+
+function editTimeEntry(id) {
+  const entry = state.timeEntries.find((item) => item.id === id);
+  if (!entry) return;
+  const value = window.prompt("Fecha, minutos y nota separados por comas:", `${entry.date},${entry.minutes},${entry.note}`);
+  if (!value) return;
+  const [date, minutes, ...note] = value.split(",").map((part) => part.trim());
+  try {
+    const corrected = validateTimeEntry(plan, {
+      ...entry, date, minutes: Number(minutes), note: note.join(", "), updatedAt: new Date().toISOString(),
+    });
+    update(() => { state.timeEntries = state.timeEntries.map((item) => item.id === id ? corrected : item); });
+  } catch (error) { announce(error.message); }
+}
 
 function runGenerator(preserveAccepted) {
   update(() => {

@@ -190,6 +190,24 @@
           Añade temas o tareas para generar bloques de estudio.
         </div>
       </section>
+
+      <section class="panel time-panel">
+        <div class="section-heading">
+          <div>
+            <p class="section-label">Tiempo confirmado</p>
+            <h2>Registro de estudio</h2>
+          </div>
+          <strong id="time-total">0 min</strong>
+        </div>
+        <form id="time-form" class="compact-form">
+          <label>Asignatura<select name="courseId" required></select></label>
+          <label>Fecha<input name="date" type="date" required /></label>
+          <label>Minutos<input name="minutes" type="number" min="1" step="1" required /></label>
+          <label class="field-grow">Nota<input name="note" placeholder="Qué has trabajado" /></label>
+          <button class="button" type="submit">Registrar tiempo</button>
+        </form>
+        <div id="time-entry-list" class="item-list empty-copy">Aún no hay tiempo confirmado.</div>
+      </section>
     </main>
 
     <dialog id="settings-dialog">

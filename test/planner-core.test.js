@@ -3,10 +3,16 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 import {
+  aggregateTimeByCourse,
+  aggregateTimeByDateRange,
+  aggregateTimeByIsoWeek,
+  aggregateTimeByTerm,
   canAwardElective,
   activitiesForWeek,
   createActivity,
   createInitialState,
+  createTimeEntry,
+  elapsedMinutes,
   electiveCredits,
   evaluateCourseAlternatives,
   findConflicts,
@@ -16,6 +22,7 @@ import {
   getWeekDates,
   getActiveSessions,
   hydrateState,
+  validateTimeEntry,
   updateActivity,
   canCreateAcademicSession,
   clampWeekToTerm,
@@ -241,6 +248,53 @@ test("la hidratación añade nuevas asignaturas sin perder datos compatibles", (
   assert.ok(hydrated.selections.fr);
 });
 
+test("migra explícitamente el estado v2 sin contabilizar sesiones planificadas", () => {
+  const old = createInitialState(plan);
+  old.version = 2;
+  delete old.timeEntries;
+  old.studySessions.push({ id: "study-old", courseId: "ec", term: 1 });
+  const hydrated = hydrateState(plan, old);
+  assert.equal(hydrated.version, 3);
+  assert.deepEqual(hydrated.timeEntries, []);
+});
+
+test("suma registros parciales confirmados sin usar la duración planificada", () => {
+  const entries = [
+    createTimeEntry(plan, { id: "a", courseId: "ec", term: 1, date: "2026-09-07", minutes: 20 }),
+    createTimeEntry(plan, { id: "b", courseId: "ec", term: 1, date: "2026-09-07", minutes: 35 }),
+  ];
+  assert.deepEqual(aggregateTimeByCourse(entries), { ec: 55 });
+  assert.equal(aggregateTimeByDateRange(entries, "2026-09-07", "2026-09-07"), 55);
+});
+
+test("calcula la duración real de una sesión que cruza medianoche", () => {
+  assert.equal(elapsedMinutes(23 * 60 + 40, 20), 40);
+});
+
+test("agrega por semana ISO y por cuatrimestre", () => {
+  const entries = [
+    createTimeEntry(plan, { id: "a", courseId: "ec", term: 1, date: "2027-01-03", minutes: 25 }),
+    createTimeEntry(plan, { id: "b", courseId: "ac", term: 2, date: "2027-01-04", minutes: 45 }),
+  ];
+  assert.deepEqual(aggregateTimeByIsoWeek(entries), { "2026-W53": 25, "2027-W01": 45 });
+  assert.deepEqual(aggregateTimeByTerm(entries), { 1: 25, 2: 45 });
+});
+
+test("permite corregir un registro conservando su creación", () => {
+  const original = createTimeEntry(plan, { id: "a", courseId: "ec", term: 1, date: "2026-09-07", minutes: 20 }, new Date("2026-09-08T10:00:00Z"));
+  const corrected = validateTimeEntry(plan, { ...original, minutes: 30, updatedAt: "2026-09-08T11:00:00Z" });
+  assert.equal(corrected.minutes, 30);
+  assert.equal(corrected.createdAt, original.createdAt);
+});
+
+test("rechaza asignaturas de otro cuatrimestre y doble contabilización", () => {
+  assert.throws(() => createTimeEntry(plan, { courseId: "ac", term: 1, date: "2026-09-07", minutes: 20 }), /cuatrimestre/);
+  const state = createInitialState(plan);
+  state.timeEntries = [
+    createTimeEntry(plan, { id: "a", courseId: "ec", term: 1, date: "2026-09-07", minutes: 20, sourceSessionId: "study-1" }),
+    createTimeEntry(plan, { id: "b", courseId: "ec", term: 1, date: "2026-09-08", minutes: 10, sourceSessionId: "study-1" }),
+  ];
+  assert.throws(() => validateImportedState(plan, state), /más de una vez/);
 test("crea y edita una actividad conservando fecha y duración", () => {
   const state = createInitialState(plan);
   const activity = createActivity(plan, state, {
