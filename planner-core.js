@@ -11,125 +11,52 @@ export const DAYS = [
 export const STORAGE_KEY = "planificador-estudio:v2";
 export const STATE_VERSION = 2;
 
-const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
+const DAY_MS = 86_400_000;
 
+/** Parse and format calendar dates without depending on the browser timezone. */
 export function parseISODate(value) {
-  if (typeof value !== "string" || !ISO_DATE.test(value)) return null;
-  const date = new Date(`${value}T00:00:00Z`);
-  return Number.isNaN(date.valueOf()) || date.toISOString().slice(0, 10) !== value
-    ? null
-    : date;
+  const [year, month, day] = value.split("-").map(Number);
+  return new Date(Date.UTC(year, month - 1, day));
 }
 
-export function formatISODate(date) {
-  return date.toISOString().slice(0, 10);
+export function toISODate(date) {
+  return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, "0")}-${String(date.getUTCDate()).padStart(2, "0")}`;
 }
 
-export function startOfISOWeek(value) {
+export function addCalendarDays(value, amount) {
   const date = typeof value === "string" ? parseISODate(value) : new Date(value);
-  if (!date || Number.isNaN(date.valueOf())) return null;
-  const result = new Date(
-    Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()),
+  date.setUTCDate(date.getUTCDate() + amount);
+  return toISODate(date);
+}
+
+export function startOfWeek(value) {
+  const date = typeof value === "string" ? parseISODate(value) : new Date(value);
+  const mondayOffset = (date.getUTCDay() + 6) % 7;
+  return addCalendarDays(date, -mondayOffset);
+}
+
+export function getWeekDates(value) {
+  const monday = startOfWeek(value);
+  return Array.from({ length: 7 }, (_, index) => addCalendarDays(monday, index));
+}
+
+export function getMonthBounds(monthValue) {
+  const month = parseISODate(`${monthValue.slice(0, 7)}-01`);
+  const start = toISODate(month);
+  month.setUTCMonth(month.getUTCMonth() + 1);
+  month.setUTCDate(0);
+  return { start, end: toISODate(month) };
+}
+
+/** Complete Monday-to-Sunday rows covering the visible month. */
+export function getCalendarWeeks(monthValue) {
+  const { start, end } = getMonthBounds(monthValue);
+  const first = startOfWeek(start);
+  const last = addCalendarDays(startOfWeek(end), 6);
+  const count = Math.round((parseISODate(last) - parseISODate(first)) / DAY_MS) + 1;
+  return Array.from({ length: count / 7 }, (_, week) =>
+    getWeekDates(addCalendarDays(first, week * 7)),
   );
-  result.setUTCDate(result.getUTCDate() - ((result.getUTCDay() + 6) % 7));
-  return formatISODate(result);
-}
-
-export function validatePlan(plan) {
-  if (!Array.isArray(plan?.academicTerms) || plan.academicTerms.length !== 2) {
-    throw new Error("El plan debe definir exactamente dos cuatrimestres.");
-  }
-  const ids = new Set();
-  let previous = null;
-  for (const term of plan.academicTerms) {
-    if (ids.has(term.id)) {
-      throw new Error("Los cuatrimestres deben tener identificadores únicos.");
-    }
-    ids.add(term.id);
-    const start = parseISODate(term.classStart);
-    const end = parseISODate(term.classEnd);
-    if (!start || !end) {
-      throw new Error(
-        `El cuatrimestre ${term.id} contiene fechas ISO no válidas.`,
-      );
-    }
-    if (start >= end) {
-      throw new Error(
-        `El inicio del cuatrimestre ${term.id} debe preceder al final.`,
-      );
-    }
-    if (previous && previous >= start) {
-      throw new Error(
-        "Los cuatrimestres deben ser cronológicos y no solaparse.",
-      );
-    }
-    previous = end;
-    let previousPeriodEnd = null;
-    for (const period of term.nonTeachingPeriods ?? []) {
-      const periodStart = parseISODate(period.start);
-      const periodEnd = parseISODate(period.end);
-      if (!periodStart || !periodEnd || periodStart > periodEnd) {
-        throw new Error(`El cuatrimestre ${term.id} contiene un periodo no lectivo no válido.`);
-      }
-      if (periodStart < start || periodEnd > end) {
-        throw new Error(`El periodo no lectivo de ${term.id} queda fuera de su docencia.`);
-      }
-      if (previousPeriodEnd && previousPeriodEnd >= periodStart) {
-        throw new Error(`Los periodos no lectivos de ${term.id} deben ser cronológicos y no solaparse.`);
-      }
-      previousPeriodEnd = periodEnd;
-    }
-  }
-  return plan;
-}
-
-export function getAcademicTerm(plan, termId) {
-  return plan.academicTerms.find(({ id }) => String(id) === String(termId));
-}
-
-export function isDateInTerm(term, value) {
-  return Boolean(
-    parseISODate(value) && value >= term.classStart && value <= term.classEnd,
-  );
-}
-
-export function nonTeachingPeriodForDate(term, value) {
-  return (term.nonTeachingPeriods ?? []).find(
-    ({ start, end }) => value >= start && value <= end,
-  );
-}
-
-export function firstWeekOfTerm(term) {
-  return startOfISOWeek(term.classStart);
-}
-
-export function clampWeekToTerm(term, weekStart) {
-  const first = firstWeekOfTerm(term);
-  const last = startOfISOWeek(term.classEnd);
-  const candidate = startOfISOWeek(weekStart);
-  if (!candidate || candidate < first) return first;
-  if (candidate > last) return last;
-  return candidate;
-}
-
-export function weekDatesForTerm(term, weekStart) {
-  const monday = parseISODate(clampWeekToTerm(term, weekStart));
-  return Array.from({ length: 7 }, (_, offset) => {
-    const date = new Date(monday);
-    date.setUTCDate(date.getUTCDate() + offset);
-    const iso = formatISODate(date);
-    return {
-      date: iso,
-      inTerm: isDateInTerm(term, iso),
-      nonTeachingPeriod: nonTeachingPeriodForDate(term, iso) ?? null,
-    };
-  });
-}
-
-export function canCreateAcademicSession(plan, termId, date, confirmed = false) {
-  const term = getAcademicTerm(plan, termId);
-  if (!term || !parseISODate(date)) return false;
-  return isDateInTerm(term, date) || confirmed;
 }
 
 export function timeToMinutes(value) {
@@ -364,6 +291,7 @@ export function generateStudySuggestions(plan, state, options = {}) {
   const term = options.term ?? state.term;
   const maxSuggestions = options.maxSuggestions ?? 8;
   const duration = options.duration ?? 60;
+  const weekStart = options.weekStart ? startOfWeek(options.weekStart) : null;
   const accepted =
     options.preserveAccepted === false
       ? []
@@ -437,6 +365,7 @@ export function generateStudySuggestions(plan, state, options = {}) {
       suggestions.push({
         id: cryptoSafeId("suggestion"),
         day: slot.day,
+        date: weekStart ? addCalendarDays(weekStart, slot.day - 1) : undefined,
         start: slot.start,
         end: slot.start + sessionDuration,
         courseId: candidate.courseId,

@@ -1,6 +1,7 @@
 import {
   DAYS,
   STORAGE_KEY,
+  addCalendarDays,
   canAwardElective,
   createInitialState,
   cryptoSafeId,
@@ -8,6 +9,9 @@ import {
   evaluateCourseAlternatives,
   findConflicts,
   generateStudySuggestions,
+  getCalendarWeeks,
+  getMonthBounds,
+  getWeekDates,
   getActiveSessions,
   hydrateState,
   clampWeekToTerm,
@@ -16,6 +20,7 @@ import {
   getAcademicTerm,
   minutesToTime,
   parseISODate,
+  startOfWeek,
   timeToMinutes,
   validateImportedState,
   validatePlan,
@@ -31,6 +36,9 @@ validatePlan(plan);
 const elements = {
   courseList: document.querySelector("#course-list"),
   calendar: document.querySelector("#calendar"),
+  monthGrid: document.querySelector("#month-grid"),
+  monthLabel: document.querySelector("#month-label"),
+  selectedWeek: document.querySelector("#selected-week"),
   conflictSummary: document.querySelector("#conflict-summary"),
   notice: document.querySelector("#notice"),
   topicForm: document.querySelector("#topic-form"),
@@ -49,6 +57,66 @@ const elements = {
 
 let calendarView = "classes";
 let state = loadState();
+const today = new Date();
+const todayISO = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
+let selectedMonth = todayISO.slice(0, 7);
+let selectedWeekStart = startOfWeek(todayISO);
+
+const fullDateFormatter = new Intl.DateTimeFormat("es-ES", {
+  weekday: "long", day: "numeric", month: "long", year: "numeric", timeZone: "UTC",
+});
+const monthFormatter = new Intl.DateTimeFormat("es-ES", {
+  month: "long", year: "numeric", timeZone: "UTC",
+});
+
+function datedActivities() {
+  const tasks = state.tasks.map((task) => ({
+    ...task,
+    date: task.date ?? task.dueAt,
+    label: task.title,
+    activityType: task.type === "exam" ? "Examen" : "Tarea",
+  }));
+  const sessions = state.studySessions
+    .filter((session) => session.date)
+    .map((session) => ({
+      ...session,
+      label: session.title,
+      activityType: "Estudio",
+    }));
+  return [...tasks, ...sessions].filter(({ date }) => /^\d{4}-\d{2}-\d{2}$/.test(date));
+}
+
+function renderSelectedWeek() {
+  const dates = getWeekDates(selectedWeekStart);
+  const activities = datedActivities();
+  document.querySelector("#selected-week-title").textContent =
+    `Semana del ${fullDateFormatter.format(parseISODate(dates[0]))}`;
+  elements.selectedWeek.innerHTML = dates.map((date) => {
+    const items = activities.filter((activity) => activity.date === date);
+    return `<article class="selected-week__day ${date === todayISO ? "is-today" : ""}">
+      <h4><time datetime="${date}">${fullDateFormatter.format(parseISODate(date))}</time></h4>
+      ${items.length ? `<ul>${items.map((item) => `<li><span>${escapeHtml(item.activityType)}</span><strong>${escapeHtml(item.label)}</strong>${item.start != null ? `<small>${minutesToTime(item.start)}–${minutesToTime(item.end)}</small>` : ""}</li>`).join("")}</ul>` : '<p class="muted">Sin actividades</p>'}
+    </article>`;
+  }).join("");
+}
+
+function renderMonthCalendar() {
+  const weeks = getCalendarWeeks(selectedMonth);
+  const { start, end } = getMonthBounds(selectedMonth);
+  const activities = datedActivities();
+  elements.monthLabel.textContent = monthFormatter.format(parseISODate(`${selectedMonth}-01`));
+  elements.monthGrid.innerHTML = `
+    ${DAYS.map(({ label, short }) => `<div class="month-grid__weekday" role="columnheader" aria-label="${label}">${short}</div>`).join("")}
+    ${weeks.flatMap((week) => week.map((date) => {
+      const count = activities.filter((activity) => activity.date === date).length;
+      const selected = week[0] === selectedWeekStart;
+      const outside = date < start || date > end;
+      return `<button type="button" role="gridcell" class="month-day ${selected ? "is-selected-week" : ""} ${date === todayISO ? "is-today" : ""} ${outside ? "is-outside" : ""}" data-calendar-date="${date}" aria-pressed="${selected}" aria-label="${fullDateFormatter.format(parseISODate(date))}${count ? `, ${count} actividades` : ""}">
+        <time datetime="${date}">${Number(date.slice(-2))}</time>${count ? `<span aria-hidden="true">${count}</span>` : ""}
+      </button>`;
+    })).join("")}`;
+  renderSelectedWeek();
+}
 
 function loadState() {
   try {
@@ -469,7 +537,7 @@ function render() {
     `Horario · ${state.term}.º cuatrimestre`;
   renderCourses();
   renderCalendar();
-  renderCalendarNavigation();
+  renderMonthCalendar();
   renderForms();
   renderTopics();
   renderTasks();
@@ -479,6 +547,12 @@ function render() {
 }
 
 document.addEventListener("click", (event) => {
+  const calendarDate = event.target.closest("[data-calendar-date]");
+  if (calendarDate) {
+    selectedWeekStart = startOfWeek(calendarDate.dataset.calendarDate);
+    renderMonthCalendar();
+    return;
+  }
   const termButton = event.target.closest("[data-term]");
   if (termButton) {
     update(() => {
@@ -712,6 +786,7 @@ elements.taskForm.addEventListener("submit", (event) => {
         courseId: data.get("courseId"),
         title: data.get("title").trim(),
         dueAt: data.get("dueAt"),
+        date: data.get("dueAt"),
         estimatedMinutes: Number(data.get("hours")) * 60,
         scheduledMinutes: 0,
         importance: Number(data.get("importance")),
@@ -740,6 +815,7 @@ function runGenerator(preserveAccepted) {
     state.suggestions = generateStudySuggestions(plan, state, {
       preserveAccepted,
       term: state.term,
+      weekStart: selectedWeekStart,
     });
     state.needsRegeneration = false;
   });
@@ -796,6 +872,7 @@ function editStudySession(id) {
   }
   update(() => {
     session.day = day;
+    session.date = addCalendarDays(selectedWeekStart, day - 1);
     session.start = start;
     session.end = end;
   });
@@ -880,6 +957,29 @@ document.querySelector("#reset-button").addEventListener("click", () => {
   state = createInitialState(plan);
   saveState();
   render();
+});
+
+function moveMonth(amount) {
+  const date = parseISODate(`${selectedMonth}-01`);
+  date.setUTCMonth(date.getUTCMonth() + amount);
+  selectedMonth = `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, "0")}`;
+  selectedWeekStart = startOfWeek(`${selectedMonth}-01`);
+  renderMonthCalendar();
+}
+
+document.querySelector("#previous-month").addEventListener("click", () => moveMonth(-1));
+document.querySelector("#next-month").addEventListener("click", () => moveMonth(1));
+elements.monthGrid.addEventListener("keydown", (event) => {
+  const button = event.target.closest("[data-calendar-date]");
+  if (!button || !["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(event.key)) return;
+  event.preventDefault();
+  const offset = { ArrowLeft: -1, ArrowRight: 1, ArrowUp: -7, ArrowDown: 7 }[event.key];
+  const nextDate = addCalendarDays(button.dataset.calendarDate, offset);
+  const nextMonth = nextDate.slice(0, 7);
+  if (nextMonth !== selectedMonth) selectedMonth = nextMonth;
+  selectedWeekStart = startOfWeek(nextDate);
+  renderMonthCalendar();
+  elements.monthGrid.querySelector(`[data-calendar-date="${nextDate}"]`)?.focus();
 });
 
 render();

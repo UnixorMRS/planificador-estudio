@@ -99,6 +99,24 @@
           <p id="term-dates" class="muted term-dates"></p>
           <div class="calendar-scroll">
             <div id="calendar" class="calendar" aria-label="Calendario semanal"></div>
+            <section class="month-calendar" aria-labelledby="month-title">
+              <header class="month-calendar__header">
+                <div>
+                  <p class="section-label">Plan por fechas</p>
+                  <h2 id="month-title">Calendario mensual</h2>
+                </div>
+                <div class="month-calendar__controls">
+                  <button id="previous-month" class="icon-button month-nav" type="button" aria-label="Mes anterior">←</button>
+                  <strong id="month-label" aria-live="polite"></strong>
+                  <button id="next-month" class="icon-button month-nav" type="button" aria-label="Mes siguiente">→</button>
+                </div>
+              </header>
+              <div id="month-grid" class="month-grid" role="grid" aria-labelledby="month-label"></div>
+              <div class="selected-week">
+                <h3 id="selected-week-title">Semana seleccionada</h3>
+                <div id="selected-week" class="selected-week__grid" aria-labelledby="selected-week-title"></div>
+              </div>
+            </section>
           </div>
         </section>
       </section>
