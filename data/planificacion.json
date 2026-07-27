@@ -1,8 +1,38 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "academicYear": "2026/27",
   "maxElectiveCredits": 24,
+  "academicTerms": [
+    {
+      "id": 1,
+      "name": "Primer cuatrimestre",
+      "classStart": "2026-09-14",
+      "classEnd": "2026-12-22",
+      "nonTeachingPeriods": [
+        { "start": "2026-10-12", "end": "2026-10-12", "label": "Fiesta Nacional de España" },
+        { "start": "2026-11-02", "end": "2026-11-02", "label": "Traslado de Todos los Santos" },
+        { "start": "2026-12-07", "end": "2026-12-08", "label": "Constitución e Inmaculada" }
+      ]
+    },
+    {
+      "id": 2,
+      "name": "Segundo cuatrimestre",
+      "classStart": "2027-02-15",
+      "classEnd": "2027-06-04",
+      "nonTeachingPeriods": [
+        { "start": "2027-03-01", "end": "2027-03-01", "label": "Traslado del Día de Andalucía" },
+        { "start": "2027-03-22", "end": "2027-04-02", "label": "Semana Santa y Pascua" },
+        { "start": "2027-05-03", "end": "2027-05-03", "label": "Traslado de la Fiesta del Trabajo" }
+      ]
+    }
+  ],
   "sources": [
+    {
+      "id": "ugr-calendar-2026-27",
+      "name": "Calendario académico oficial de enseñanzas de Grado 2026/27 de la Universidad de Granada",
+      "url": "https://secretariageneral.ugr.es/informacion/servicios/calendario-academico",
+      "consultedAt": "2026-07-27"
+    },
     {
       "id": "gii",
       "name": "Horarios GII (26-27)",

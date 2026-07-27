@@ -4,6 +4,32 @@ Fuente humana resumida para sincronizar el planificador. Los datos ejecutables
 están en `data/planificacion.json`; no se debe deducir una adjudicación a partir
 del orden de preferencia.
 
+## Calendario académico oficial
+
+**Fuente consultada el 27 de julio de 2026:** [Calendario académico oficial de
+la Universidad de Granada para 2026/27](https://secretariageneral.ugr.es/informacion/servicios/calendario-academico),
+apartado de enseñanzas de Grado. Las fechas siguientes se han transcrito de ese
+calendario publicado para 2026/27; no se han proyectado desde otro curso:
+
+| Periodo | Inicio de docencia | Fin de docencia |
+| --- | --- | --- |
+| Primer cuatrimestre | 14 de septiembre de 2026 | 22 de diciembre de 2026 |
+| Segundo cuatrimestre | 15 de febrero de 2027 | 4 de junio de 2027 |
+
+El calendario general retrasa al **21 de septiembre de 2026** el inicio de la
+docencia de **primer curso de Grado**. Esa excepción no afecta a este plan, que
+contiene asignaturas de cursos posteriores de GII/GIIM y Matemáticas. Los
+centros pueden aprobar adaptaciones justificadas para titulaciones con una
+organización docente específica; no se encontró una adaptación de ETSIIT ni de
+la Facultad de Ciencias que cambie los límites anteriores para las asignaturas
+de este plan. Si el centro publica posteriormente una adaptación, deberá
+registrarse explícitamente en `academicTerms`, nunca inferirse.
+
+Dentro de esos límites se muestran como no lectivos los festivos y periodos de
+interrupción que figuran en el calendario: 12 de octubre, 2 de noviembre y
+7–8 de diciembre de 2026; y 1 de marzo, 22 de marzo–2 de abril y 3 de mayo de
+2027. Que un día se muestre en la semana no lo convierte en lectivo.
+
 ## Reglas
 
 - Las ocho optativas están solicitadas, no adjudicadas.

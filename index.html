@@ -91,8 +91,41 @@
             </div>
           </div>
           <div id="conflict-summary"></div>
+          <div class="date-navigation">
+            <button class="button button--ghost" id="previous-week" type="button">← Semana</button>
+            <strong id="week-label"></strong>
+            <button class="button button--ghost" id="next-week" type="button">Semana →</button>
+          </div>
+          <div class="calendar-navigation" aria-label="Navegación del calendario">
+            <button id="previous-month" class="button button--ghost" type="button">← Mes anterior</button>
+            <label>Semana de <input id="week-picker" type="date" /></label>
+            <button id="next-month" class="button button--ghost" type="button">Mes siguiente →</button>
+          </div>
+          <p id="term-dates" class="muted term-dates"></p>
           <div class="calendar-scroll">
             <div id="calendar" class="calendar" aria-label="Calendario semanal"></div>
+            <section class="month-calendar" aria-labelledby="month-title">
+              <header class="month-calendar__header">
+                <div>
+                  <p class="section-label">Plan por fechas</p>
+                  <h2 id="month-title">Calendario mensual</h2>
+                </div>
+                <div class="month-calendar__controls">
+                  <button id="previous-month" class="icon-button month-nav" type="button" aria-label="Mes anterior">←</button>
+                  <strong id="month-label" aria-live="polite"></strong>
+                  <button id="next-month" class="icon-button month-nav" type="button" aria-label="Mes siguiente">→</button>
+                </div>
+              </header>
+              <div id="month-grid" class="month-grid" role="grid" aria-labelledby="month-label"></div>
+              <div class="selected-week">
+                <h3 id="selected-week-title">Semana seleccionada</h3>
+                <div id="selected-week" class="selected-week__grid" aria-labelledby="selected-week-title"></div>
+              </div>
+            </section>
+          </div>
+          <div class="month-block">
+            <h3 id="month-label">Mes</h3>
+            <div id="month-calendar" class="month-calendar" aria-label="Resumen mensual"></div>
           </div>
         </section>
       </section>
@@ -126,13 +159,16 @@
             </div>
           </div>
           <form id="task-form" class="compact-form task-form">
-            <label>Tipo<select name="type"><option value="task">Tarea</option><option value="exam">Examen</option></select></label>
+            <input name="id" type="hidden" />
+            <label>Tipo<select name="type"><option value="task">Tarea</option><option value="homework">Deberes</option><option value="practice">Práctica</option><option value="exam">Examen</option></select></label>
             <label>Asignatura<select name="courseId" required></select></label>
             <label class="field-grow">Título<input name="title" required placeholder="Práctica 1" /></label>
-            <label>Fecha<input name="dueAt" type="date" required /></label>
-            <label>Horas<input name="hours" type="number" min="0.5" step="0.5" value="2" required /></label>
+            <label>Fecha<input name="date" type="date" required /></label>
+            <label>Hora inicial <span class="muted">(opcional)</span><input name="startTime" type="time" /></label>
+            <label>Duración (min)<input name="estimatedMinutes" type="number" min="1" step="15" value="120" required /></label>
             <label>Importancia<select name="importance"><option>1</option><option>2</option><option selected>3</option><option>4</option><option>5</option></select></label>
-            <button class="button" type="submit">Añadir</button>
+            <button class="button" type="submit"><span data-task-submit>Añadir</span></button>
+            <button class="button button--ghost" data-cancel-task-edit type="button" hidden>Cancelar</button>
           </form>
           <div id="task-list" class="item-list empty-copy">Aún no hay tareas ni exámenes.</div>
         </article>

@@ -8,6 +8,8 @@ import {
   aggregateTimeByIsoWeek,
   aggregateTimeByTerm,
   canAwardElective,
+  activitiesForWeek,
+  createActivity,
   createInitialState,
   createTimeEntry,
   elapsedMinutes,
@@ -15,15 +17,95 @@ import {
   evaluateCourseAlternatives,
   findConflicts,
   generateStudySuggestions,
+  getCalendarWeeks,
+  getMonthBounds,
+  getWeekDates,
   getActiveSessions,
   hydrateState,
   validateTimeEntry,
+  updateActivity,
+  canCreateAcademicSession,
+  clampWeekToTerm,
+  getAcademicTerm,
+  isDateInTerm,
+  nonTeachingPeriodForDate,
   validateImportedState,
+  validatePlan,
+  weekDatesForTerm,
 } from "../planner-core.js";
+
+test("calcula una semana completa de lunes a domingo", () => {
+  assert.deepEqual(getWeekDates("2026-07-27"), [
+    "2026-07-27", "2026-07-28", "2026-07-29", "2026-07-30",
+    "2026-07-31", "2026-08-01", "2026-08-02",
+  ]);
+});
+
+test("calcula los límites exactos de meses normales y bisiestos", () => {
+  assert.deepEqual(getMonthBounds("2026-02"), { start: "2026-02-01", end: "2026-02-28" });
+  assert.deepEqual(getMonthBounds("2028-02"), { start: "2028-02-01", end: "2028-02-29" });
+});
+
+test("la cuadrícula incluye semanas que atraviesan dos meses", () => {
+  const weeks = getCalendarWeeks("2026-08");
+  assert.deepEqual(weeks[0], [
+    "2026-07-27", "2026-07-28", "2026-07-29", "2026-07-30",
+    "2026-07-31", "2026-08-01", "2026-08-02",
+  ]);
+  assert.deepEqual(weeks.at(-1), [
+    "2026-08-31", "2026-09-01", "2026-09-02", "2026-09-03",
+    "2026-09-04", "2026-09-05", "2026-09-06",
+  ]);
+});
 
 const plan = JSON.parse(
   await readFile(new URL("../data/planificacion.json", import.meta.url), "utf8"),
 );
+
+test("el calendario oficial tiene límites inclusivos", () => {
+  validatePlan(plan);
+  const first = getAcademicTerm(plan, 1);
+  assert.equal(isDateInTerm(first, "2026-09-14"), true);
+  assert.equal(isDateInTerm(first, "2026-12-22"), true);
+  assert.equal(isDateInTerm(first, "2026-09-13"), false);
+  assert.equal(isDateInTerm(first, "2026-12-23"), false);
+});
+
+test("una semana parcial conserva los días visibles y marca los que quedan fuera", () => {
+  const second = getAcademicTerm(plan, 2);
+  const dates = weekDatesForTerm(second, "2027-06-04");
+  assert.deepEqual(dates.map(({ date }) => date), [
+    "2027-05-31", "2027-06-01", "2027-06-02", "2027-06-03",
+    "2027-06-04", "2027-06-05", "2027-06-06",
+  ]);
+  assert.deepEqual(dates.map(({ inTerm }) => inTerm), [true, true, true, true, true, false, false]);
+  assert.equal(clampWeekToTerm(second, "2027-08-01"), "2027-05-31");
+});
+
+test("los periodos no lectivos se identifican sin sacarlos del cuatrimestre", () => {
+  const second = getAcademicTerm(plan, 2);
+  assert.equal(isDateInTerm(second, "2027-03-24"), true);
+  assert.match(nonTeachingPeriodForDate(second, "2027-03-24").label, /Santa/);
+  assert.equal(nonTeachingPeriodForDate(second, "2027-04-05"), undefined);
+});
+
+test("crear una sesión fuera del cuatrimestre exige confirmación expresa", () => {
+  assert.equal(canCreateAcademicSession(plan, 2, "2027-06-04"), true);
+  assert.equal(canCreateAcademicSession(plan, 2, "2027-06-05"), false);
+  assert.equal(canCreateAcademicSession(plan, 2, "2027-06-05", true), true);
+});
+
+test("la validación rechaza fechas imposibles, orden inverso y solapamientos", () => {
+  const invalidDate = structuredClone(plan);
+  invalidDate.academicTerms[0].classStart = "2026-02-30";
+  assert.throws(() => validatePlan(invalidDate), /ISO no válidas/);
+  const inverse = structuredClone(plan);
+  inverse.academicTerms[0].classEnd = inverse.academicTerms[0].classStart;
+  assert.throws(() => validatePlan(inverse), /debe preceder/);
+  const overlap = structuredClone(plan);
+  overlap.academicTerms[1].classStart = "2026-12-20";
+  assert.throws(() => validatePlan(overlap), /no solaparse/);
+});
 
 test("el estado inicial no adjudica ninguna optativa", () => {
   const state = createInitialState(plan);
@@ -213,4 +295,52 @@ test("rechaza asignaturas de otro cuatrimestre y doble contabilización", () => 
     createTimeEntry(plan, { id: "b", courseId: "ec", term: 1, date: "2026-09-08", minutes: 10, sourceSessionId: "study-1" }),
   ];
   assert.throws(() => validateImportedState(plan, state), /más de una vez/);
+test("crea y edita una actividad conservando fecha y duración", () => {
+  const state = createInitialState(plan);
+  const activity = createActivity(plan, state, {
+    type: "practice", term: 1, courseId: "ec", title: "Práctica 1",
+    date: "2026-09-16", startTime: "16:30", estimatedMinutes: 90,
+  });
+  updateActivity(plan, state, activity.id, { title: "Práctica revisada", completed: true });
+  assert.equal(state.tasks[0].date, "2026-09-16");
+  assert.equal(state.tasks[0].estimatedMinutes, 90);
+  assert.equal(state.tasks[0].completed, true);
+});
+
+test("rechaza una asignatura de otro cuatrimestre", () => {
+  const state = createInitialState(plan);
+  assert.throws(() => createActivity(plan, state, {
+    type: "homework", term: 1, courseId: "ise", title: "Entrega",
+    date: "2026-10-01", estimatedMinutes: 60,
+  }), /cuatrimestre/);
+});
+
+test("migra tareas v2 sin descartarlas y conserva el tipo task", () => {
+  const saved = createInitialState(plan);
+  saved.version = 2;
+  saved.tasks = [{ id: "legacy", type: "task", courseId: "ec", title: "Antigua", dueAt: "2026-09-20", estimatedMinutes: 45 }];
+  const migrated = hydrateState(plan, saved);
+  assert.equal(migrated.version, 3);
+  assert.equal(migrated.tasks[0].date, "2026-09-20");
+  assert.equal(migrated.tasks[0].type, "task");
+  assert.equal(migrated.tasks[0].term, 1);
+});
+
+test("filtra actividades por semana y cuatrimestre", () => {
+  const state = createInitialState(plan);
+  state.tasks = [
+    { id: "a", term: 1, date: "2026-09-14" },
+    { id: "b", term: 1, date: "2026-09-21" },
+    { id: "c", term: 2, date: "2026-09-16" },
+  ];
+  assert.deepEqual(activitiesForWeek(state, "2026-09-14", 1).map(({ id }) => id), ["a"]);
+});
+
+test("no sugiere sesiones posteriores a la entrega ni fuera de la semana", () => {
+  const state = createInitialState(plan);
+  state.availability = Object.fromEntries(Object.entries(state.availability).map(([day, value]) => [day, { ...value, start: "18:00", end: "20:00" }]));
+  state.tasks.push({ id: "deadline", type: "exam", term: 1, courseId: "ec", title: "Parcial", date: "2026-09-16", estimatedMinutes: 600, scheduledMinutes: 0, importance: 5, completed: false });
+  const suggestions = generateStudySuggestions(plan, state, { now: new Date("2026-09-14T08:00:00"), weekStart: "2026-09-14", maxSuggestions: 8 });
+  assert.ok(suggestions.length > 0);
+  assert.ok(suggestions.every(({ date }) => date >= "2026-09-14" && date <= "2026-09-16"));
 });
