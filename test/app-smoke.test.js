@@ -43,3 +43,38 @@ test("enlaza los selectores de cuatrimestre y los días mensuales", async () => 
   assert.match(source, /data-date=/);
   assert.match(source, /openCalendarActivityForm\(activityDate\)/);
 });
+
+test("todas las asignaturas ofrecen una guía HTTPS oficial de la UGR", async () => {
+  const data = JSON.parse(
+    await readFile(new URL("../data/planificacion.json", import.meta.url), "utf8"),
+  );
+
+  assert.ok(data.courses.length > 0);
+  for (const course of data.courses) {
+    assert.equal(typeof course.guideUrl, "string", `${course.id} no tiene guideUrl`);
+    const guideUrl = new URL(course.guideUrl);
+    assert.equal(guideUrl.protocol, "https:", `${course.id} no usa HTTPS`);
+    assert.ok(
+      guideUrl.hostname === "ugr.es" || guideUrl.hostname.endsWith(".ugr.es"),
+      `${course.id} no enlaza a un dominio oficial de la UGR`,
+    );
+  }
+});
+
+test("renderiza las guías en un contenedor accesible con enlaces externos seguros", async () => {
+  const [html, source] = await Promise.all([
+    readFile(new URL("../index.html", import.meta.url), "utf8"),
+    readFile(new URL("../app.js", import.meta.url), "utf8"),
+  ]);
+
+  assert.match(html, /<h2 id="guide-section-title">Guías docentes y temarios<\/h2>/);
+  assert.match(html, /<div id="guide-list" class="guide-list"><\/div>/);
+  assert.match(source, /guideList:\s*document\.querySelector\("#guide-list"\)/);
+  assert.match(source, /function normalizeGuideUrl\(value\)/);
+  assert.match(source, /url\.protocol === "https:" \? url\.href : null/);
+  assert.match(source, /function renderGuides\(\)/);
+  assert.match(source, /course\.term === state\.term/);
+  assert.match(source, /target="_blank"/);
+  assert.match(source, /rel="noopener noreferrer"/);
+  assert.match(source, /`Abrir la guía docente de \$\{course\.name\} en la web de la UGR`/);
+});
