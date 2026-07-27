@@ -13,6 +13,7 @@ import {
   generateStudySuggestions,
   getActiveSessions,
   hydrateState,
+  sortActivitiesByStartTime,
   updateActivity,
   validateImportedState,
 } from "../planner-core.js";
@@ -172,6 +173,41 @@ test("crea y edita una actividad conservando fecha y duración", () => {
   assert.equal(state.tasks[0].date, "2026-09-16");
   assert.equal(state.tasks[0].estimatedMinutes, 90);
   assert.equal(state.tasks[0].completed, true);
+});
+
+test("crea actividades con fecha, asignatura, hora y duración válidas", () => {
+  const state = createInitialState(plan);
+  const activity = createActivity(plan, state, {
+    type: "task", term: 1, courseId: "ec", title: "Entrega",
+    date: "2026-10-08", startTime: "09:45", estimatedMinutes: 75,
+  });
+  assert.deepEqual(
+    [activity.date, activity.courseId, activity.startTime, activity.estimatedMinutes],
+    ["2026-10-08", "ec", "09:45", 75],
+  );
+});
+
+test("rechaza horas inválidas y duraciones no positivas", () => {
+  const state = createInitialState(plan);
+  const base = { type: "task", term: 1, courseId: "ec", title: "Entrega", date: "2026-10-08", estimatedMinutes: 30 };
+  for (const startTime of ["24:00", "9:30", "12:60", "no-es-hora"]) {
+    assert.throws(() => createActivity(plan, state, { ...base, startTime }), /hora inicial/);
+  }
+  assert.throws(() => createActivity(plan, state, { ...base, startTime: "09:30", estimatedMinutes: 0 }), /duración/);
+});
+
+test("ordena actividades por hora de forma estable y deja las que no tienen hora al final", () => {
+  const activities = [
+    { id: "sin-1", courseId: "ec", startTime: "" },
+    { id: "tarde", courseId: "ddsi", startTime: "18:00" },
+    { id: "empate-a", courseId: "ec", startTime: "09:00" },
+    { id: "empate-b", courseId: "fr", startTime: "09:00" },
+    { id: "sin-2", courseId: "ddsi" },
+  ];
+  assert.deepEqual(sortActivitiesByStartTime(activities).map(({ id }) => id), [
+    "empate-a", "empate-b", "tarde", "sin-1", "sin-2",
+  ]);
+  assert.equal(activities[0].id, "sin-1", "la función no muta la entrada");
 });
 
 test("rechaza una asignatura de otro cuatrimestre", () => {

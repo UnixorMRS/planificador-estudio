@@ -17,6 +17,7 @@ import {
   minutesToTime,
   timeToMinutes,
   startOfWeek,
+  sortActivitiesByStartTime,
   updateActivity,
   validateImportedState,
 } from "./planner-core.js";
@@ -48,6 +49,12 @@ const elements = {
     1: document.querySelector("#months-term-1"),
     2: document.querySelector("#months-term-2"),
   },
+  calendarActivityForm: document.querySelector("#calendar-activity-form"),
+};
+
+const ACADEMIC_MONTHS = {
+  1: [[2026, 8], [2026, 9], [2026, 10], [2026, 11], [2027, 0], [2027, 1]],
+  2: [[2027, 1], [2027, 2], [2027, 3], [2027, 4], [2027, 5], [2027, 6]],
 };
 
 let calendarView = "classes";
@@ -70,6 +77,28 @@ function loadState() {
 
 function saveState() {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+}
+
+function syncTermInterface() {
+  document.querySelectorAll(".term-switch button[data-term]").forEach((button) => {
+    const active = Number(button.dataset.term) === state.term;
+    button.classList.toggle("is-active", active);
+    button.setAttribute("aria-pressed", String(active));
+  });
+  document.querySelectorAll("[data-term-overview]").forEach((overview) => {
+    const active = Number(overview.dataset.termOverview) === state.term;
+    overview.hidden = !active;
+    overview.classList.toggle("is-active", active);
+  });
+}
+
+function selectTerm(term) {
+  state.term = Number(term);
+  syncTermInterface();
+  renderCourses();
+  renderForms();
+  renderMetrics();
+  saveState();
 }
 
 function escapeHtml(value = "") {
@@ -256,26 +285,64 @@ function monthDates(year, month) {
 }
 
 function renderTermMonths(term) {
-  const academicTerm = plan.academicTerms.find(({ id }) => id === term);
-  const start = new Date(`${academicTerm.classStart}T12:00:00`);
-  const end = new Date(`${academicTerm.classEnd}T12:00:00`);
-  const months = [];
-  for (let cursor = new Date(start.getFullYear(), start.getMonth(), 1, 12); cursor <= end; cursor.setMonth(cursor.getMonth() + 1)) {
-    months.push([cursor.getFullYear(), cursor.getMonth()]);
+  if (elements.termMonths[term].contains(elements.calendarActivityForm)) {
+    document.querySelector(".academic-overview").append(elements.calendarActivityForm);
+    elements.calendarActivityForm.hidden = true;
   }
+  const academicTerm = plan.academicTerms.find(({ id }) => id === term);
+  const months = ACADEMIC_MONTHS[term];
   const dayHeaders = DAYS.map(({ short }) => `<span class="month-weekday">${short.slice(0, 1)}</span>`).join("");
   elements.termMonths[term].innerHTML = months.map(([year, month]) => {
     const title = new Intl.DateTimeFormat("es-ES", { month: "long", year: "numeric" }).format(new Date(year, month, 1));
     const days = monthDates(year, month).map((date) => {
       const iso = date.toISOString().slice(0, 10);
-      const items = state.tasks.filter((item) => item.term === term && item.date === iso);
+      const items = sortActivitiesByStartTime(state.tasks.filter((item) => item.term === term && item.date === iso));
       const noClass = academicTerm.nonTeachingPeriods.some((period) => iso >= period.start && iso <= period.end);
-      return `<button type="button" class="month-day ${date.getMonth() !== month ? "is-outside" : ""} ${noClass ? "is-holiday" : ""}" data-activity-date="${iso}" data-activity-term="${term}" title="${noClass ? "Periodo no lectivo" : "Añadir actividad"}">
-        <strong>${date.getDate()}</strong>${items.length ? `<span class="month-count">${items.length}</span>` : ""}
+      const outside = date.getMonth() !== month;
+      const strips = items.map((activity) => {
+        const course = courseById(activity.courseId);
+        const start = activity.startTime ? timeToMinutes(activity.startTime) : null;
+        const end = start === null ? null : start + Number(activity.estimatedMinutes ?? 0);
+        const schedule = activity.startTime
+          ? ` · ${activity.startTime}–${end < 24 * 60 ? minutesToTime(end) : "fin del día"}`
+          : " · Sin hora";
+        const description = `${activity.title} · ${course?.name ?? "Asignatura"}${schedule}`;
+        return `<span class="activity-strip" style="--activity-color:${escapeHtml(course?.color ?? "#667085")}" title="${escapeHtml(description)}" aria-label="${escapeHtml(description)}"><span>${escapeHtml(activity.startTime || "—")}</span> ${escapeHtml(activity.title)}</span>`;
+      }).join("");
+      return `<button type="button" class="month-day ${outside ? "is-outside" : ""} ${noClass ? "is-holiday" : ""}" data-date="${iso}" data-activity-date="${iso}" data-activity-term="${term}" ${outside ? "aria-disabled=\"true\"" : ""} title="${outside ? "Día de otro mes" : noClass ? "Periodo no lectivo" : "Añadir actividad"}">
+        <strong>${date.getDate()}</strong>${strips ? `<span class="activity-strips">${strips}</span>` : ""}
       </button>`;
     }).join("");
     return `<section class="month-card"><h4>${title}</h4><div class="month-calendar">${dayHeaders}${days}</div></section>`;
   }).join("");
+}
+
+function activeCourseOptionsForTerm(term) {
+  return plan.courses
+    .filter((course) => course.term === term && state.selections[course.id]?.active)
+    .map((course) => `<option value="${course.id}">${escapeHtml(course.abbreviation)} · ${escapeHtml(course.name)}</option>`)
+    .join("");
+}
+
+function openCalendarActivityForm(dayButton) {
+  const form = elements.calendarActivityForm;
+  const term = Number(dayButton.dataset.activityTerm);
+  selectTerm(term);
+  document.querySelectorAll(".month-day.is-selected").forEach((day) => day.classList.remove("is-selected"));
+  dayButton.classList.add("is-selected");
+  form.reset();
+  form.elements.term.value = term;
+  form.elements.date.value = dayButton.dataset.date;
+  form.elements.estimatedMinutes.value = 60;
+  form.elements.courseId.innerHTML = `<option value="">Selecciona una asignatura</option>${activeCourseOptionsForTerm(term)}`;
+  dayButton.closest(".month-card").insertAdjacentElement("afterend", form);
+  form.hidden = false;
+  form.elements.title.focus({ preventScroll: true });
+}
+
+function closeCalendarActivityForm() {
+  elements.calendarActivityForm.hidden = true;
+  document.querySelectorAll(".month-day.is-selected").forEach((day) => day.classList.remove("is-selected"));
 }
 
 function renderCalendar() {
@@ -472,9 +539,7 @@ function renderAvailability() {
 }
 
 function render() {
-  document.querySelectorAll("[data-term]").forEach((button) => {
-    button.classList.toggle("is-active", Number(button.dataset.term) === state.term);
-  });
+  syncTermInterface();
   renderCourses();
   renderCalendar();
   renderForms();
@@ -494,16 +559,14 @@ document.addEventListener("click", (event) => {
 
   const activityDate = event.target.closest("[data-activity-date]");
   if (activityDate) {
-    if (activityDate.dataset.activityTerm && state.term !== Number(activityDate.dataset.activityTerm)) {
-      update(() => { state.term = Number(activityDate.dataset.activityTerm); });
-    }
-    prepareTaskForm(activityDate.dataset.activityDate);
+    if (activityDate.classList.contains("is-outside")) return;
+    openCalendarActivityForm(activityDate);
     return;
   }
 
   const manageTerm = event.target.closest("[data-manage-term]");
   if (manageTerm) {
-    update(() => { state.term = Number(manageTerm.dataset.manageTerm); });
+    selectTerm(manageTerm.dataset.manageTerm);
     document.querySelector("#planning-options").scrollIntoView({ behavior: "smooth" });
     return;
   }
@@ -515,9 +578,7 @@ document.addEventListener("click", (event) => {
 
   const termButton = event.target.closest("[data-term]");
   if (termButton) {
-    update(() => {
-      state.term = Number(termButton.dataset.term);
-    });
+    selectTerm(termButton.dataset.term);
     return;
   }
 
@@ -670,6 +731,31 @@ function beginTaskEdit(id) {
 }
 
 elements.taskForm.querySelector("[data-cancel-task-edit]").addEventListener("click", () => prepareTaskForm(""));
+elements.calendarActivityForm.querySelector("[data-cancel-calendar-activity]").addEventListener("click", closeCalendarActivityForm);
+elements.calendarActivityForm.addEventListener("submit", (event) => {
+  event.preventDefault();
+  const data = new FormData(event.currentTarget);
+  try {
+    const term = Number(data.get("term"));
+    createActivity(plan, state, {
+      type: "task",
+      term,
+      date: data.get("date"),
+      courseId: data.get("courseId"),
+      title: data.get("title").trim(),
+      startTime: data.get("startTime"),
+      estimatedMinutes: Number(data.get("estimatedMinutes")),
+      importance: 3,
+    });
+    state.term = term;
+    saveState();
+    closeCalendarActivityForm();
+    render();
+    announce("Actividad guardada.", "success");
+  } catch (error) {
+    announce(error.message);
+  }
+});
 elements.courseList.addEventListener("change", (event) => {
   const activeId = event.target.dataset.courseActive;
   if (activeId) {

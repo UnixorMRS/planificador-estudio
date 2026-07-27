@@ -21,3 +21,25 @@ test("el módulo principal mantiene una única declaración por importación", a
     .filter(Boolean);
   assert.equal(new Set(imports).size, imports.length);
 });
+
+test("declara seis meses por cuatrimestre y el panel contextual completo", async () => {
+  const [html, source] = await Promise.all([
+    readFile(new URL("../index.html", import.meta.url), "utf8"),
+    readFile(new URL("../app.js", import.meta.url), "utf8"),
+  ]);
+  assert.match(source, /1:\s*\[\[2026, 8\].*\[2027, 1\]\]/s);
+  assert.match(source, /2:\s*\[\[2027, 1\].*\[2027, 6\]\]/s);
+  assert.match(html, /id="calendar-activity-form"/);
+  for (const name of ["date", "courseId", "title", "startTime", "estimatedMinutes"]) {
+    assert.match(html, new RegExp(`name="${name}"`));
+  }
+  assert.match(html, /data-cancel-calendar-activity/);
+});
+
+test("enlaza los selectores de cuatrimestre y los días mensuales", async () => {
+  const source = await readFile(new URL("../app.js", import.meta.url), "utf8");
+  assert.match(source, /function selectTerm\(term\)/);
+  assert.match(source, /\.term-switch button\[data-term\]/);
+  assert.match(source, /data-date=/);
+  assert.match(source, /openCalendarActivityForm\(activityDate\)/);
+});

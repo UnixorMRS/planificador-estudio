@@ -43,8 +43,8 @@ export function normalizeActivity(plan, activity, fallbackTerm = 1) {
     term: Number(activity?.term ?? course?.term ?? fallbackTerm),
     date,
     dueAt: date,
-    startTime: /^\d{2}:\d{2}$/.test(activity?.startTime ?? "") ? activity.startTime : "",
-    estimatedMinutes: Math.max(1, Number(activity?.estimatedMinutes ?? 120)),
+    startTime: activity?.startTime ?? "",
+    estimatedMinutes: Number(activity?.estimatedMinutes ?? 120),
     completed: Boolean(activity?.completed),
     courseId: activity?.courseId ?? "",
     scheduledMinutes: Math.max(0, Number(activity?.scheduledMinutes ?? 0)),
@@ -64,7 +64,24 @@ export function validateActivity(plan, activity) {
   if (normalized.startTime && !/^([01]\d|2[0-3]):[0-5]\d$/.test(normalized.startTime)) {
     throw new Error("La hora inicial no es válida.");
   }
+  if (!Number.isFinite(normalized.estimatedMinutes) || normalized.estimatedMinutes <= 0) {
+    throw new Error("La duración debe ser un número positivo.");
+  }
   return normalized;
+}
+
+/** Orden estable: primero las actividades con hora, en orden cronológico. */
+export function sortActivitiesByStartTime(activities) {
+  return activities
+    .map((activity, index) => ({ activity, index }))
+    .sort((first, second) => {
+      const firstHasTime = /^([01]\d|2[0-3]):[0-5]\d$/.test(first.activity.startTime ?? "");
+      const secondHasTime = /^([01]\d|2[0-3]):[0-5]\d$/.test(second.activity.startTime ?? "");
+      if (firstHasTime !== secondHasTime) return firstHasTime ? -1 : 1;
+      if (!firstHasTime) return first.index - second.index;
+      return timeToMinutes(first.activity.startTime) - timeToMinutes(second.activity.startTime) || first.index - second.index;
+    })
+    .map(({ activity }) => activity);
 }
 
 export function createActivity(plan, state, values) {
