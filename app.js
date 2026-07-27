@@ -1,143 +1,58 @@
 import {
   DAYS,
   STORAGE_KEY,
-  aggregateStudyTime,
   activitiesForWeek,
-  addCalendarDays,
   canAwardElective,
-  createTimeEntry,
   createInitialState,
   createActivity,
   cryptoSafeId,
-  dateForWeekDay,
   electiveCredits,
   evaluateCourseAlternatives,
   findConflicts,
-  filterTimeHistory,
   generateStudySuggestions,
-  getCalendarWeeks,
-  getMonthBounds,
-  getWeekDates,
   getActiveSessions,
-  getWeekRange,
   hydrateState,
   dateForWeekDay,
   dateToDay,
-  clampWeekToTerm,
-  firstWeekOfTerm,
-  formatISODate,
-  getAcademicTerm,
   minutesToTime,
-  parseISODate,
-  startOfWeek,
   timeToMinutes,
   startOfWeek,
   updateActivity,
   validateImportedState,
-  validateTimeEntry,
-  validatePlan,
-  weekDatesForTerm,
 } from "./planner-core.js";
 
 const plan = await fetch("./data/planificacion.json").then((response) => {
   if (!response.ok) throw new Error("No se pudo cargar la planificación.");
   return response.json();
 });
-validatePlan(plan);
 
 const elements = {
   courseList: document.querySelector("#course-list"),
   calendar: document.querySelector("#calendar"),
-  monthGrid: document.querySelector("#month-grid"),
-  monthLabel: document.querySelector("#month-label"),
-  selectedWeek: document.querySelector("#selected-week"),
   conflictSummary: document.querySelector("#conflict-summary"),
   notice: document.querySelector("#notice"),
   topicForm: document.querySelector("#topic-form"),
   topicList: document.querySelector("#topic-list"),
   taskForm: document.querySelector("#task-form"),
   taskList: document.querySelector("#task-list"),
-  timeForm: document.querySelector("#time-form"),
-  timeEntryList: document.querySelector("#time-entry-list"),
   suggestionList: document.querySelector("#suggestion-list"),
   generateButton: document.querySelector("#generate-button"),
   regenerationBanner: document.querySelector("#regeneration-banner"),
   settingsDialog: document.querySelector("#settings-dialog"),
   recalcDialog: document.querySelector("#recalc-dialog"),
   availabilityFields: document.querySelector("#availability-fields"),
-  timeSummary: document.querySelector("#time-summary-table"),
-  selectedWeek: document.querySelector("#selected-week"),
-  historyForm: document.querySelector("#history-form"),
-  historyList: document.querySelector("#history-list"),
   monthCalendar: document.querySelector("#month-calendar"),
-  weekPicker: document.querySelector("#week-picker"),
-  termDates: document.querySelector("#term-dates"),
 };
 
 let calendarView = "classes";
-let selectedWeek = getWeekRange(new Date()).start;
 let state = loadState();
 let selectedWeek = startOfWeek(new Date());
-const today = new Date();
-const todayISO = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
-let selectedMonth = todayISO.slice(0, 7);
-let selectedWeekStart = startOfWeek(todayISO);
-
-const fullDateFormatter = new Intl.DateTimeFormat("es-ES", {
-  weekday: "long", day: "numeric", month: "long", year: "numeric", timeZone: "UTC",
-});
-const monthFormatter = new Intl.DateTimeFormat("es-ES", {
-  month: "long", year: "numeric", timeZone: "UTC",
-});
-
-function datedActivities() {
-  const tasks = state.tasks.map((task) => ({
-    ...task,
-    date: task.date ?? task.dueAt,
-    label: task.title,
-    activityType: task.type === "exam" ? "Examen" : "Tarea",
-  }));
-  const sessions = state.studySessions
-    .filter((session) => session.date)
-    .map((session) => ({
-      ...session,
-      label: session.title,
-      activityType: "Estudio",
-    }));
-  return [...tasks, ...sessions].filter(({ date }) => /^\d{4}-\d{2}-\d{2}$/.test(date));
-}
-
-function renderSelectedWeek() {
-  const dates = getWeekDates(selectedWeekStart);
-  const activities = datedActivities();
-  document.querySelector("#selected-week-title").textContent =
-    `Semana del ${fullDateFormatter.format(parseISODate(dates[0]))}`;
-  elements.selectedWeek.innerHTML = dates.map((date) => {
-    const items = activities.filter((activity) => activity.date === date);
-    return `<article class="selected-week__day ${date === todayISO ? "is-today" : ""}">
-      <h4><time datetime="${date}">${fullDateFormatter.format(parseISODate(date))}</time></h4>
-      ${items.length ? `<ul>${items.map((item) => `<li><span>${escapeHtml(item.activityType)}</span><strong>${escapeHtml(item.label)}</strong>${item.start != null ? `<small>${minutesToTime(item.start)}–${minutesToTime(item.end)}</small>` : ""}</li>`).join("")}</ul>` : '<p class="muted">Sin actividades</p>'}
-    </article>`;
-  }).join("");
-}
-
-function renderMonthCalendar() {
-  const weeks = getCalendarWeeks(selectedMonth);
-  const { start, end } = getMonthBounds(selectedMonth);
-  const activities = datedActivities();
-  elements.monthLabel.textContent = monthFormatter.format(parseISODate(`${selectedMonth}-01`));
-  elements.monthGrid.innerHTML = `
-    ${DAYS.map(({ label, short }) => `<div class="month-grid__weekday" role="columnheader" aria-label="${label}">${short}</div>`).join("")}
-    ${weeks.flatMap((week) => week.map((date) => {
-      const count = activities.filter((activity) => activity.date === date).length;
-      const selected = week[0] === selectedWeekStart;
-      const outside = date < start || date > end;
-      return `<button type="button" role="gridcell" class="month-day ${selected ? "is-selected-week" : ""} ${date === todayISO ? "is-today" : ""} ${outside ? "is-outside" : ""}" data-calendar-date="${date}" aria-pressed="${selected}" aria-label="${fullDateFormatter.format(parseISODate(date))}${count ? `, ${count} actividades` : ""}">
-        <time datetime="${date}">${Number(date.slice(-2))}</time>${count ? `<span aria-hidden="true">${count}</span>` : ""}
-      </button>`;
-    })).join("")}`;
-  renderSelectedWeek();
-}
+const activityLabels = {
+  task: "Tarea",
+  homework: "Deberes",
+  practice: "Práctica",
+  exam: "Examen",
+};
 
 function loadState() {
   try {
@@ -300,9 +215,6 @@ function activeCalendarSessions() {
 }
 
 function renderCalendar() {
-  const term = getAcademicTerm(plan, state.term);
-  const weekStart = state.calendarWeeks[state.term];
-  const weekDates = weekDatesForTerm(term, weekStart);
   const sessions = activeCalendarSessions();
   const classSessions = getActiveSessions(plan, state);
   const conflicts = findConflicts(classSessions, state.acceptedConflictIds);
@@ -318,15 +230,6 @@ function renderCalendar() {
   elements.calendar.innerHTML = `
     <div class="calendar-header"></div>
     ${visibleDays.map((day) => `<div class="calendar-header">${day.short}<small>${dateForWeekDay(selectedWeek, day.id).slice(8)}</small></div>`).join("")}
-    ${visibleDays.map((day) => {
-      const date = weekDates[day.id - 1];
-      const label = new Intl.DateTimeFormat("es-ES", {
-        day: "numeric",
-        month: "short",
-        timeZone: "UTC",
-      }).format(parseISODate(date.date));
-      return `<div class="calendar-header ${!date.inTerm ? "is-outside-term" : ""} ${date.nonTeachingPeriod ? "is-non-teaching" : ""}">${day.short}<small>${label}</small>${date.nonTeachingPeriod ? `<span>${escapeHtml(date.nonTeachingPeriod.label)}</span>` : ""}</div>`;
-    }).join("")}
     <div class="time-axis">
       ${Array.from({ length: (end - start) / 60 + 1 }, (_, index) => {
         const minute = start + index * 60;
@@ -336,11 +239,8 @@ function renderCalendar() {
     ${visibleDays
       .map(
         (day) => `<div class="day-column" data-day="${day.id}" data-date="${dateForWeekDay(selectedWeek, day.id)}" title="Pulsa para crear una actividad">
-        (day) => {
-          const date = weekDates[day.id - 1];
-          return `<div class="day-column ${!date.inTerm ? "is-outside-term" : ""} ${date.nonTeachingPeriod ? "is-non-teaching" : ""}" data-day="${day.id}" data-date="${date.date}">
           ${sessions
-            .filter((session) => session.day === day.id && date.inTerm && !date.nonTeachingPeriod)
+            .filter((session) => session.day === day.id)
             .map((session) => {
               const top = (session.start - start) * pixelsPerMinute;
               const height = Math.max(32, (session.end - session.start) * pixelsPerMinute - 4);
@@ -355,8 +255,7 @@ function renderCalendar() {
               </div>`;
             })
             .join("")}
-        </div>`;
-        },
+        </div>`,
       )
       .join("")}`;
 
@@ -384,19 +283,6 @@ function renderMonth() {
     const items = state.tasks.filter((item) => item.term === state.term && item.date === iso);
     return `<button type="button" class="month-day ${date.getMonth() !== month ? "is-outside" : ""}" data-activity-date="${iso}"><strong>${date.getDate()}</strong><span class="activity-dots">${items.slice(0, 4).map(() => '<i class="activity-dot"></i>').join("")}</span></button>`;
   }).join("");
-}
-
-function renderCalendarNavigation() {
-  const term = getAcademicTerm(plan, state.term);
-  const first = firstWeekOfTerm(term);
-  const last = clampWeekToTerm(term, term.classEnd);
-  const current = state.calendarWeeks[state.term];
-  elements.weekPicker.min = first;
-  elements.weekPicker.max = last;
-  elements.weekPicker.value = current;
-  document.querySelector("#previous-month").disabled = current === first;
-  document.querySelector("#next-month").disabled = current === last;
-  elements.termDates.textContent = `Docencia: ${term.classStart}–${term.classEnd}. Los días sombreados son no lectivos o quedan fuera del cuatrimestre.`;
 }
 
 function renderConflicts(conflicts) {
@@ -433,98 +319,16 @@ function renderForms() {
   const options = courseOptions();
   const topicSelect = elements.topicForm.elements.courseId;
   const taskSelect = elements.taskForm.elements.courseId;
-  const historySelect = elements.historyForm.elements.courseId;
-  const timeSelect = elements.timeForm.elements.courseId;
   const topicValue = topicSelect.value;
   const taskValue = taskSelect.value;
-  const timeValue = timeSelect.value;
   topicSelect.innerHTML = options;
   taskSelect.innerHTML = options;
-  historySelect.innerHTML = options;
-  timeSelect.innerHTML = plan.courses
-    .filter((course) => course.term === state.term)
-    .map((course) => `<option value="${course.id}">${escapeHtml(course.abbreviation)} · ${escapeHtml(course.name)}</option>`)
-    .join("");
   if ([...topicSelect.options].some((option) => option.value === topicValue)) {
     topicSelect.value = topicValue;
   }
   if ([...taskSelect.options].some((option) => option.value === taskValue)) {
     taskSelect.value = taskValue;
   }
-  if ([...timeSelect.options].some((option) => option.value === timeValue)) {
-    timeSelect.value = timeValue;
-  }
-  if (!elements.timeForm.elements.date.value) {
-    elements.timeForm.elements.date.value = new Date().toISOString().slice(0, 10);
-  }
-}
-
-function renderTimeEntries() {
-  const entries = state.timeEntries
-    .filter(({ term }) => term === state.term)
-    .sort((a, b) => b.date.localeCompare(a.date));
-  document.querySelector("#time-total").textContent =
-    `${entries.reduce((total, entry) => total + entry.minutes, 0)} min`;
-  elements.timeEntryList.className = entries.length ? "item-list" : "item-list empty-copy";
-  elements.timeEntryList.innerHTML = entries.map((entry) => {
-    const course = courseById(entry.courseId);
-    return `<div class="list-item">
-      <div><strong>${entry.minutes} min · ${escapeHtml(course?.abbreviation ?? "")}</strong>
-      <small>${entry.date}${entry.note ? ` · ${escapeHtml(entry.note)}` : ""}${entry.sourceSessionId ? " · sesión confirmada" : " · manual"}</small></div>
-      <div class="item-actions">
-        <button class="button button--small button--ghost" data-edit-time="${entry.id}">Corregir</button>
-        <button class="icon-button" data-delete-time="${entry.id}" aria-label="Eliminar registro">×</button>
-      </div>
-    </div>`;
-  }).join("") || "Aún no hay tiempo confirmado.";
-}
-
-function formatMinutes(minutes) {
-  const hours = Math.floor(minutes / 60);
-  const remainder = minutes % 60;
-  return hours ? `${hours} h${remainder ? ` ${remainder} min` : ""}` : `${remainder} min`;
-}
-
-function timeValues(values) {
-  return `<span class="time-kind time-kind--planned" title="Planificado">P ${formatMinutes(values.planned)}</span>
-    <span class="time-kind time-kind--estimated" title="Estimado">E ${formatMinutes(values.estimated)}</span>
-    <span class="time-kind time-kind--actual" title="Registrado">R ${formatMinutes(values.actual)}</span>`;
-}
-
-function renderTimeSummary() {
-  const summary = aggregateStudyTime(plan, state, { term: state.term, weekStart: selectedWeek });
-  elements.selectedWeek.value = summary.week.start;
-  elements.timeSummary.innerHTML = `<table>
-    <thead><tr><th>Asignatura</th><th>Esta semana<br><small>${summary.week.start} — ${summary.week.end}</small></th><th>Total del cuatrimestre</th></tr></thead>
-    <tbody>${summary.rows.map((row) => `<tr><th data-label="Asignatura">${escapeHtml(row.abbreviation)}<small>${escapeHtml(row.courseName)}</small></th><td data-label="Esta semana">${timeValues(row.week)}</td><td data-label="Total del cuatrimestre">${timeValues(row.term)}</td></tr>`).join("")}</tbody>
-    <tfoot><tr><th data-label="Asignatura">Total general</th><td data-label="Esta semana">${timeValues(summary.totals.week)}</td><td data-label="Total del cuatrimestre">${timeValues(summary.totals.term)}</td></tr></tfoot>
-  </table>`;
-}
-
-function historyFilters() {
-  return {
-    term: document.querySelector("#history-term").value,
-    courseId: document.querySelector("#history-course").value,
-    from: document.querySelector("#history-from").value,
-    to: document.querySelector("#history-to").value,
-  };
-}
-
-function renderHistory() {
-  const courseFilter = document.querySelector("#history-course");
-  const previous = courseFilter.value;
-  courseFilter.innerHTML = `<option value="">Todas</option>${plan.courses.map((course) => `<option value="${course.id}">${escapeHtml(course.abbreviation)}</option>`).join("")}`;
-  courseFilter.value = previous;
-  const entries = filterTimeHistory(state.timeHistory, historyFilters());
-  const grouping = document.querySelector("#history-group").value;
-  const groups = new Map();
-  entries.forEach((entry) => {
-    const key = grouping === "week" ? `Semana del ${getWeekRange(entry.date).start}` : grouping === "course" ? courseById(entry.courseId)?.name ?? entry.courseId : "Historial";
-    if (!groups.has(key)) groups.set(key, []);
-    groups.get(key).push(entry);
-  });
-  elements.historyList.className = entries.length ? "history-list" : "history-list empty-copy";
-  elements.historyList.innerHTML = entries.length ? [...groups].map(([label, items]) => `<section class="history-group"><h3>${escapeHtml(label)}</h3>${items.map((entry) => `<article class="history-entry"><div><time datetime="${entry.date}">${entry.date}</time><strong>${escapeHtml(courseById(entry.courseId)?.abbreviation ?? entry.courseId)}</strong><span>${formatMinutes(entry.durationMinutes)}</span></div><p>${escapeHtml(entry.note || "Sin nota")}</p><small>Origen: ${escapeHtml(entry.origin)}</small><span class="item-actions"><button class="button button--small button--ghost" data-edit-history="${entry.id}">Editar</button><button class="icon-button" data-delete-history="${entry.id}" aria-label="Eliminar registro">×</button></span></article>`).join("")}</section>`).join("") : "No hay registros que coincidan con los filtros.";
 }
 
 function renderTopics() {
@@ -537,8 +341,7 @@ function renderTopics() {
   elements.topicList.innerHTML = state.topics
     .map((topic) => {
       const course = courseById(topic.courseId);
-      const labels = { task: "Tarea", homework: "Deberes", practice: "Práctica", exam: "Examen" };
-      return `<div class="list-item ${task.completed ? "is-completed" : ""}">
+      return `<div class="list-item">
         <div>
           <strong>${escapeHtml(topic.name)}</strong>
           <small>${escapeHtml(course?.abbreviation ?? "")} · dificultad ${topic.difficulty}/5</small>
@@ -578,7 +381,7 @@ function renderTasks() {
       return `<div class="list-item">
         <div>
           <strong>${escapeHtml(task.title)}</strong>
-          <small>${labels[task.type] ?? "Tarea"} · ${escapeHtml(course?.abbreviation ?? "")} · ${date}${task.startTime ? `, ${task.startTime}` : ""} · ${task.estimatedMinutes} min</small>
+          <small>${activityLabels[task.type] ?? "Tarea"} · ${escapeHtml(course?.abbreviation ?? "")} · ${date}${task.startTime ? `, ${task.startTime}` : ""} · ${task.estimatedMinutes} min</small>
         </div>
         <div class="item-actions">
           <button class="button button--small ${task.completed ? "button--ghost" : ""}" data-toggle-task="${task.id}">
@@ -603,8 +406,7 @@ function suggestionCard(session, accepted = false) {
       <span class="item-actions">
         ${
           accepted
-            ? `<button class="button button--small" data-complete-session="${session.id}" ${state.timeEntries.some(({ sourceSessionId }) => sourceSessionId === session.id) ? "disabled" : ""}>${state.timeEntries.some(({ sourceSessionId }) => sourceSessionId === session.id) ? "Realizada" : "Marcar realizada"}</button>
-               <button class="button button--small button--ghost" data-edit-session="${session.id}">Editar</button>
+            ? `<button class="button button--small button--ghost" data-edit-session="${session.id}">Editar</button>
                <button class="icon-button" data-delete-session="${session.id}" aria-label="Eliminar sesión">×</button>`
             : `<button class="button button--small" data-accept-suggestion="${session.id}">Aceptar</button>
                <button class="icon-button" data-dismiss-suggestion="${session.id}" aria-label="Descartar sugerencia">×</button>`
@@ -616,8 +418,8 @@ function suggestionCard(session, accepted = false) {
 
 function renderSuggestions() {
   const content = [
-    ...state.studySessions.filter((session) => session.term === state.term).map((session) => suggestionCard(session, true)),
-    ...state.suggestions.filter((session) => session.term === state.term).map((session) => suggestionCard(session, false)),
+    ...state.studySessions.map((session) => suggestionCard(session, true)),
+    ...state.suggestions.map((session) => suggestionCard(session, false)),
   ];
   elements.suggestionList.className = content.length
     ? "suggestion-grid"
@@ -673,39 +475,17 @@ function render() {
   });
   document.querySelector("#calendar-title").textContent =
     `Horario · ${state.term}.º cuatrimestre`;
-  if (!elements.historyForm.elements.date.value) {
-    elements.historyForm.elements.date.value = selectedWeek;
-  }
   renderCourses();
   renderCalendar();
-  renderMonthCalendar();
   renderForms();
   renderTopics();
   renderTasks();
   renderSuggestions();
-  renderTimeEntries();
   renderMetrics();
-  renderTimeSummary();
-  renderHistory();
   renderAvailability();
 }
 
 document.addEventListener("click", (event) => {
-  const editHistory = event.target.closest("[data-edit-history]");
-  if (editHistory) {
-    editHistoryEntry(editHistory.dataset.editHistory);
-    return;
-  }
-  const deleteHistory = event.target.closest("[data-delete-history]");
-  if (deleteHistory) {
-    update(() => {
-      state.timeHistory = state.timeHistory.filter(
-        ({ id }) => id !== deleteHistory.dataset.deleteHistory,
-      );
-    });
-    return;
-  }
-
   const editTask = event.target.closest("[data-edit-task]");
   if (editTask) {
     beginTaskEdit(editTask.dataset.editTask);
@@ -723,37 +503,13 @@ document.addEventListener("click", (event) => {
     const rect = dayColumn.getBoundingClientRect();
     const minute = Math.max(480, Math.min(1260, 480 + Math.round((event.clientY - rect.top) / (54 / 30) / 15) * 15));
     prepareTaskForm(dayColumn.dataset.date, minutesToTime(minute));
-  const calendarDate = event.target.closest("[data-calendar-date]");
-  if (calendarDate) {
-    selectedWeekStart = startOfWeek(calendarDate.dataset.calendarDate);
-    renderMonthCalendar();
     return;
   }
   const termButton = event.target.closest("[data-term]");
   if (termButton) {
     update(() => {
       state.term = Number(termButton.dataset.term);
-      const term = getAcademicTerm(plan, state.term);
-      state.calendarWeeks[state.term] = firstWeekOfTerm(term);
     });
-    return;
-  }
-
-  const completeSession = event.target.closest("[data-complete-session]");
-  if (completeSession) {
-    confirmStudySession(completeSession.dataset.completeSession);
-    return;
-  }
-
-  const editTime = event.target.closest("[data-edit-time]");
-  if (editTime) {
-    editTimeEntry(editTime.dataset.editTime);
-    return;
-  }
-
-  const deleteTime = event.target.closest("[data-delete-time]");
-  if (deleteTime) {
-    update(() => { state.timeEntries = state.timeEntries.filter(({ id }) => id !== deleteTime.dataset.deleteTime); });
     return;
   }
 
@@ -819,8 +575,6 @@ document.addEventListener("click", (event) => {
         ...session,
         id: cryptoSafeId("study"),
         term: state.term,
-        weekStart: selectedWeek,
-        date: dateForWeekDay(selectedWeek, session.day),
         kind: "study",
       });
       const task = state.tasks.find(({ id }) => id === session.sourceId);
@@ -883,60 +637,6 @@ document.addEventListener("click", (event) => {
   }
 });
 
-elements.historyForm.addEventListener("submit", (event) => {
-  event.preventDefault();
-  const data = new FormData(event.currentTarget);
-  const course = courseById(data.get("courseId"));
-  update(() => {
-    state.timeHistory.push({
-      id: cryptoSafeId("history"),
-      term: course.term,
-      courseId: course.id,
-      date: data.get("date"),
-      durationMinutes: Number(data.get("durationMinutes")),
-      note: data.get("note").trim(),
-      origin: data.get("origin"),
-    });
-    event.currentTarget.reset();
-    event.currentTarget.elements.date.value = selectedWeek;
-    event.currentTarget.elements.durationMinutes.value = 60;
-  });
-});
-
-document.querySelectorAll("#history-term, #history-course, #history-from, #history-to, #history-group").forEach((control) => {
-  control.addEventListener("change", renderHistory);
-});
-
-elements.selectedWeek.addEventListener("change", () => {
-  if (!elements.selectedWeek.value) return;
-  selectedWeek = getWeekRange(elements.selectedWeek.value).start;
-  renderTimeSummary();
-});
-
-function moveWeek(days) {
-  const date = new Date(`${selectedWeek}T12:00:00`);
-  date.setDate(date.getDate() + days);
-  selectedWeek = getWeekRange(date).start;
-  renderTimeSummary();
-}
-document.querySelector("#previous-week").addEventListener("click", () => moveWeek(-7));
-document.querySelector("#next-week").addEventListener("click", () => moveWeek(7));
-
-function editHistoryEntry(id) {
-  const entry = state.timeHistory.find((item) => item.id === id);
-  if (!entry) return;
-  const value = window.prompt("Duración en minutos y nota, separados por coma:", `${entry.durationMinutes}, ${entry.note}`);
-  if (!value) return;
-  const [duration, ...note] = value.split(",");
-  if (!Number.isFinite(Number(duration)) || Number(duration) <= 0) {
-    announce("La duración debe ser un número positivo.");
-    return;
-  }
-  update(() => {
-    entry.durationMinutes = Number(duration);
-    entry.note = note.join(",").trim();
-  });
-}
 function prepareTaskForm(date, startTime = "") {
   elements.taskForm.reset();
   elements.taskForm.elements.id.value = "";
@@ -969,26 +669,6 @@ document.querySelector("#previous-week").addEventListener("click", () => {
 document.querySelector("#next-week").addEventListener("click", () => {
   selectedWeek = dateForWeekDay(selectedWeek, 8);
   renderCalendar();
-function moveCalendarMonth(offset) {
-  update(() => {
-    const term = getAcademicTerm(plan, state.term);
-    const date = parseISODate(state.calendarWeeks[state.term]);
-    date.setUTCMonth(date.getUTCMonth() + offset);
-    state.calendarWeeks[state.term] = clampWeekToTerm(term, formatISODate(date));
-  });
-}
-
-document
-  .querySelector("#previous-month")
-  .addEventListener("click", () => moveCalendarMonth(-1));
-document
-  .querySelector("#next-month")
-  .addEventListener("click", () => moveCalendarMonth(1));
-elements.weekPicker.addEventListener("change", (event) => {
-  update(() => {
-    const term = getAcademicTerm(plan, state.term);
-    state.calendarWeeks[state.term] = clampWeekToTerm(term, event.target.value);
-  });
 });
 
 elements.courseList.addEventListener("change", (event) => {
@@ -1071,10 +751,6 @@ elements.taskForm.addEventListener("submit", (event) => {
         date: data.get("date"),
         startTime: data.get("startTime"),
         estimatedMinutes: Number(data.get("estimatedMinutes")),
-        dueAt: data.get("dueAt"),
-        date: data.get("dueAt"),
-        estimatedMinutes: Number(data.get("hours")) * 60,
-        scheduledMinutes: 0,
         importance: Number(data.get("importance")),
         };
         const id = data.get("id");
@@ -1093,53 +769,6 @@ elements.taskForm.addEventListener("submit", (event) => {
   }
 });
 
-elements.timeForm.addEventListener("submit", (event) => {
-  event.preventDefault();
-  const data = new FormData(event.currentTarget);
-  try {
-    const entry = createTimeEntry(plan, {
-      courseId: data.get("courseId"), term: state.term, date: data.get("date"),
-      minutes: data.get("minutes"), note: data.get("note").trim(),
-    });
-    update(() => state.timeEntries.push(entry));
-    event.currentTarget.elements.minutes.value = "";
-    event.currentTarget.elements.note.value = "";
-  } catch (error) { announce(error.message); }
-});
-
-function confirmStudySession(id) {
-  const session = state.studySessions.find((item) => item.id === id);
-  if (!session || state.timeEntries.some(({ sourceSessionId }) => sourceSessionId === id)) {
-    announce("Esta sesión ya está contabilizada.");
-    return;
-  }
-  const date = window.prompt("Fecha real (AAAA-MM-DD):", new Date().toISOString().slice(0, 10));
-  if (!date) return;
-  const minutes = window.prompt("Duración real en minutos:", String(session.end - session.start));
-  if (!minutes) return;
-  try {
-    const entry = createTimeEntry(plan, {
-      courseId: session.courseId, term: session.term, date, minutes,
-      sourceSessionId: session.id, note: session.title,
-    });
-    update(() => state.timeEntries.push(entry));
-  } catch (error) { announce(error.message); }
-}
-
-function editTimeEntry(id) {
-  const entry = state.timeEntries.find((item) => item.id === id);
-  if (!entry) return;
-  const value = window.prompt("Fecha, minutos y nota separados por comas:", `${entry.date},${entry.minutes},${entry.note}`);
-  if (!value) return;
-  const [date, minutes, ...note] = value.split(",").map((part) => part.trim());
-  try {
-    const corrected = validateTimeEntry(plan, {
-      ...entry, date, minutes: Number(minutes), note: note.join(", "), updatedAt: new Date().toISOString(),
-    });
-    update(() => { state.timeEntries = state.timeEntries.map((item) => item.id === id ? corrected : item); });
-  } catch (error) { announce(error.message); }
-}
-
 function runGenerator(preserveAccepted) {
   update(() => {
     if (!preserveAccepted) {
@@ -1156,7 +785,6 @@ function runGenerator(preserveAccepted) {
       preserveAccepted,
       term: state.term,
       weekStart: selectedWeek,
-      weekStart: selectedWeekStart,
     });
     state.needsRegeneration = false;
   });
@@ -1213,7 +841,6 @@ function editStudySession(id) {
   }
   update(() => {
     session.day = day;
-    session.date = addCalendarDays(selectedWeekStart, day - 1);
     session.start = start;
     session.end = end;
   });
@@ -1265,12 +892,7 @@ document.querySelector("#save-settings").addEventListener("click", (event) => {
 });
 
 document.querySelector("#export-button").addEventListener("click", () => {
-  const exportedState = {
-    ...state,
-    timeHistory: [...state.timeHistory],
-    exportMetadata: { exportedAt: new Date().toISOString(), includesCompleteHistory: true },
-  };
-  const blob = new Blob([JSON.stringify(exportedState, null, 2)], {
+  const blob = new Blob([JSON.stringify(state, null, 2)], {
     type: "application/json",
   });
   const link = document.createElement("a");
@@ -1303,29 +925,6 @@ document.querySelector("#reset-button").addEventListener("click", () => {
   state = createInitialState(plan);
   saveState();
   render();
-});
-
-function moveMonth(amount) {
-  const date = parseISODate(`${selectedMonth}-01`);
-  date.setUTCMonth(date.getUTCMonth() + amount);
-  selectedMonth = `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, "0")}`;
-  selectedWeekStart = startOfWeek(`${selectedMonth}-01`);
-  renderMonthCalendar();
-}
-
-document.querySelector("#previous-month").addEventListener("click", () => moveMonth(-1));
-document.querySelector("#next-month").addEventListener("click", () => moveMonth(1));
-elements.monthGrid.addEventListener("keydown", (event) => {
-  const button = event.target.closest("[data-calendar-date]");
-  if (!button || !["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(event.key)) return;
-  event.preventDefault();
-  const offset = { ArrowLeft: -1, ArrowRight: 1, ArrowUp: -7, ArrowDown: 7 }[event.key];
-  const nextDate = addCalendarDays(button.dataset.calendarDate, offset);
-  const nextMonth = nextDate.slice(0, 7);
-  if (nextMonth !== selectedMonth) selectedMonth = nextMonth;
-  selectedWeekStart = startOfWeek(nextDate);
-  renderMonthCalendar();
-  elements.monthGrid.querySelector(`[data-calendar-date="${nextDate}"]`)?.focus();
 });
 
 render();

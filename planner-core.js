@@ -93,54 +93,6 @@ export function activitiesForWeek(state, weekStart, term = state.term) {
   );
 }
 
-const DAY_MS = 86_400_000;
-
-/** Parse and format calendar dates without depending on the browser timezone. */
-export function parseISODate(value) {
-  const [year, month, day] = value.split("-").map(Number);
-  return new Date(Date.UTC(year, month - 1, day));
-}
-
-export function toISODate(date) {
-  return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, "0")}-${String(date.getUTCDate()).padStart(2, "0")}`;
-}
-
-export function addCalendarDays(value, amount) {
-  const date = typeof value === "string" ? parseISODate(value) : new Date(value);
-  date.setUTCDate(date.getUTCDate() + amount);
-  return toISODate(date);
-}
-
-export function startOfWeek(value) {
-  const date = typeof value === "string" ? parseISODate(value) : new Date(value);
-  const mondayOffset = (date.getUTCDay() + 6) % 7;
-  return addCalendarDays(date, -mondayOffset);
-}
-
-export function getWeekDates(value) {
-  const monday = startOfWeek(value);
-  return Array.from({ length: 7 }, (_, index) => addCalendarDays(monday, index));
-}
-
-export function getMonthBounds(monthValue) {
-  const month = parseISODate(`${monthValue.slice(0, 7)}-01`);
-  const start = toISODate(month);
-  month.setUTCMonth(month.getUTCMonth() + 1);
-  month.setUTCDate(0);
-  return { start, end: toISODate(month) };
-}
-
-/** Complete Monday-to-Sunday rows covering the visible month. */
-export function getCalendarWeeks(monthValue) {
-  const { start, end } = getMonthBounds(monthValue);
-  const first = startOfWeek(start);
-  const last = addCalendarDays(startOfWeek(end), 6);
-  const count = Math.round((parseISODate(last) - parseISODate(first)) / DAY_MS) + 1;
-  return Array.from({ length: count / 7 }, (_, week) =>
-    getWeekDates(addCalendarDays(first, week * 7)),
-  );
-}
-
 export function timeToMinutes(value) {
   const [hours, minutes] = value.split(":").map(Number);
   return hours * 60 + minutes;
@@ -153,7 +105,6 @@ export function minutesToTime(value) {
 }
 
 export function createInitialState(plan) {
-  validatePlan(plan);
   const selections = Object.fromEntries(
     plan.courses.map((course) => [
       course.id,
@@ -168,16 +119,11 @@ export function createInitialState(plan) {
   return {
     version: STATE_VERSION,
     term: 1,
-    calendarWeeks: Object.fromEntries(
-      plan.academicTerms.map((term) => [term.id, firstWeekOfTerm(term)]),
-    ),
     selections,
     acceptedConflictIds: ["af-friday::ec-b2-practice"],
     topics: [],
     tasks: [],
     studySessions: [],
-    timeHistory: [],
-    timeEntries: [],
     suggestions: [],
     availability: Object.fromEntries(
       DAYS.map(({ id }) => [
@@ -189,129 +135,27 @@ export function createInitialState(plan) {
   };
 }
 
-export function toIsoDate(date) {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
-}
-
-export function getWeekRange(value = new Date()) {
-  const date = typeof value === "string" ? new Date(`${value}T12:00:00`) : new Date(value);
-  if (Number.isNaN(date.getTime())) throw new Error("La fecha de la semana no es válida.");
-  const monday = new Date(date);
-  monday.setHours(12, 0, 0, 0);
-  monday.setDate(monday.getDate() - ((monday.getDay() + 6) % 7));
-  const sunday = new Date(monday);
-  sunday.setDate(sunday.getDate() + 6);
-  return { start: toIsoDate(monday), end: toIsoDate(sunday) };
-}
-
-export function dateForWeekDay(weekStart, day) {
-  const monday = new Date(`${getWeekRange(weekStart).start}T12:00:00`);
-  monday.setDate(monday.getDate() + Number(day) - 1);
-  return toIsoDate(monday);
-}
-
-/** Pure time aggregation used by every time summary in the UI. */
-export function aggregateStudyTime(plan, state, { term = state.term, weekStart } = {}) {
-  const week = getWeekRange(weekStart ?? new Date());
-  const courses = plan.courses.filter((course) => course.term === term);
-  const rows = courses.map((course) => {
-    const tasks = state.tasks.filter((task) => task.courseId === course.id);
-    const sessions = state.studySessions.filter(
-      (session) => session.term === term && session.courseId === course.id,
-    );
-    const history = (state.timeHistory ?? []).filter(
-      (entry) => entry.term === term && entry.courseId === course.id,
-    );
-    const inWeek = (date) => date >= week.start && date <= week.end;
-    const planned = (items) => items.reduce(
-      (total, session) => total + Number(session.durationMinutes ?? session.end - session.start), 0,
-    );
-    const estimated = (items) => items.reduce(
-      (total, task) => total + Number(task.estimatedMinutes ?? 0), 0,
-    );
-    const actual = (items) => items.reduce(
-      (total, entry) => total + Number(entry.durationMinutes ?? 0), 0,
-    );
-    return {
-      courseId: course.id,
-      courseName: course.name,
-      abbreviation: course.abbreviation,
-      week: {
-        planned: planned(sessions.filter((session) => {
-          const date = session.date ?? (session.weekStart
-            ? dateForWeekDay(session.weekStart, session.day)
-            : "");
-          return date && inWeek(date);
-        })),
-        estimated: estimated(tasks.filter((task) => inWeek(task.dueAt))),
-        actual: actual(history.filter((entry) => inWeek(entry.date))),
-      },
-      term: {
-        planned: planned(sessions),
-        estimated: estimated(tasks),
-        actual: actual(history),
-      },
-    };
-  });
-  const sum = (scope, kind) => rows.reduce((total, row) => total + row[scope][kind], 0);
-  return {
-    week,
-    rows,
-    totals: Object.fromEntries(["week", "term"].map((scope) => [scope, {
-      planned: sum(scope, "planned"),
-      estimated: sum(scope, "estimated"),
-      actual: sum(scope, "actual"),
-    }])),
-  };
-}
-
-export function filterTimeHistory(entries, filters = {}) {
-  return [...(entries ?? [])]
-    .filter((entry) => !filters.term || entry.term === Number(filters.term))
-    .filter((entry) => !filters.courseId || entry.courseId === filters.courseId)
-    .filter((entry) => !filters.from || entry.date >= filters.from)
-    .filter((entry) => !filters.to || entry.date <= filters.to)
-    .sort((a, b) => b.date.localeCompare(a.date) || String(b.id).localeCompare(String(a.id)));
-}
-
 export function hydrateState(plan, saved) {
   const initial = createInitialState(plan);
-  if (!saved) return initial;
-  const migrated = migrateState(saved);
-  if (migrated.version !== STATE_VERSION) return initial;
   if (!saved || typeof saved !== "object") return initial;
   if (![2, STATE_VERSION].includes(saved.version)) return initial;
 
   const selections = { ...initial.selections };
   for (const course of plan.courses) {
-    if (migrated.selections?.[course.id]) {
+    if (saved.selections?.[course.id]) {
       selections[course.id] = {
         ...selections[course.id],
-        ...migrated.selections[course.id],
+        ...saved.selections[course.id],
       };
     }
   }
 
   const hydrated = {
     ...initial,
-    ...migrated,
+    ...saved,
     selections,
-    timeEntries: Array.isArray(migrated.timeEntries) ? migrated.timeEntries : [],
-    availability: { ...initial.availability, ...migrated.availability },
     availability: { ...initial.availability, ...saved.availability },
     version: STATE_VERSION,
-    calendarWeeks: Object.fromEntries(
-      plan.academicTerms.map((term) => [
-        term.id,
-        clampWeekToTerm(
-          term,
-          saved.calendarWeeks?.[term.id] ?? firstWeekOfTerm(term),
-        ),
-      ]),
-    ),
   };
   hydrated.tasks = Array.isArray(saved.tasks)
     ? saved.tasks.map((task) => normalizeActivity(plan, task, saved.term ?? 1))
@@ -319,101 +163,6 @@ export function hydrateState(plan, saved) {
   hydrated.studySessions = Array.isArray(saved.studySessions) ? saved.studySessions : [];
   hydrated.suggestions = [];
   return hydrated;
-}
-
-/** Explicit v2 → v3 migration. Planned sessions deliberately create no time. */
-export function migrateState(saved) {
-  if (!saved || typeof saved !== "object") return saved;
-  if (saved.version === 2) {
-    return { ...saved, version: STATE_VERSION, timeEntries: [] };
-  }
-  return saved;
-}
-
-export function isIsoDate(value) {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(value ?? "")) return false;
-  const [year, month, day] = value.split("-").map(Number);
-  const date = new Date(Date.UTC(year, month - 1, day));
-  return date.getUTCFullYear() === year &&
-    date.getUTCMonth() === month - 1 && date.getUTCDate() === day;
-}
-
-export function validateTimeEntry(plan, entry) {
-  const course = plan.courses.find(({ id }) => id === entry?.courseId);
-  if (!entry?.id) throw new Error("El registro necesita un identificador.");
-  if (!course) throw new Error("El registro contiene una asignatura desconocida.");
-  if (![1, 2].includes(Number(entry.term)) || course.term !== Number(entry.term)) {
-    throw new Error("La asignatura no pertenece al cuatrimestre del registro.");
-  }
-  if (!isIsoDate(entry.date)) throw new Error("La fecha del registro no es válida.");
-  if (!Number.isFinite(Number(entry.minutes)) || Number(entry.minutes) <= 0) {
-    throw new Error("Los minutos deben ser positivos.");
-  }
-  if (!entry.createdAt || !Number.isFinite(Date.parse(entry.createdAt)) ||
-      !entry.updatedAt || !Number.isFinite(Date.parse(entry.updatedAt))) {
-    throw new Error("Las fechas de creación y actualización no son válidas.");
-  }
-  return { ...entry, term: Number(entry.term), minutes: Number(entry.minutes), note: String(entry.note ?? "") };
-}
-
-export function createTimeEntry(plan, input, now = new Date()) {
-  const timestamp = now.toISOString();
-  return validateTimeEntry(plan, {
-    id: input.id ?? cryptoSafeId("time"),
-    courseId: input.courseId,
-    term: Number(input.term),
-    date: input.date,
-    minutes: Number(input.minutes),
-    ...(input.sourceSessionId ? { sourceSessionId: input.sourceSessionId } : {}),
-    note: input.note ?? "",
-    createdAt: input.createdAt ?? timestamp,
-    updatedAt: timestamp,
-  });
-}
-
-export function elapsedMinutes(start, end) {
-  const duration = end - start;
-  return duration > 0 ? duration : duration + 24 * 60;
-}
-
-function sumEntries(entries) {
-  return entries.reduce((total, { minutes }) => total + Number(minutes), 0);
-}
-
-function groupMinutes(entries, keyFor) {
-  return entries.reduce((result, entry) => {
-    const key = keyFor(entry);
-    result[key] = (result[key] ?? 0) + Number(entry.minutes);
-    return result;
-  }, {});
-}
-
-export function aggregateTimeByCourse(entries) {
-  return groupMinutes(entries, ({ courseId }) => courseId);
-}
-
-export function isoWeekKey(dateValue) {
-  const date = new Date(`${dateValue}T00:00:00Z`);
-  date.setUTCDate(date.getUTCDate() + 4 - (date.getUTCDay() || 7));
-  const year = date.getUTCFullYear();
-  const yearStart = new Date(Date.UTC(year, 0, 1));
-  const week = Math.ceil((((date - yearStart) / 86_400_000) + 1) / 7);
-  return `${year}-W${String(week).padStart(2, "0")}`;
-}
-
-export function aggregateTimeByIsoWeek(entries) {
-  return groupMinutes(entries, ({ date }) => isoWeekKey(date));
-}
-
-export function aggregateTimeByDateRange(entries, start, end) {
-  if (!isIsoDate(start) || !isIsoDate(end) || start > end) {
-    throw new Error("El intervalo de fechas no es válido.");
-  }
-  return sumEntries(entries.filter(({ date }) => date >= start && date <= end));
-}
-
-export function aggregateTimeByTerm(entries) {
-  return groupMinutes(entries, ({ term }) => String(term));
 }
 
 export function getCourseSessions(course, selection) {
@@ -573,7 +322,6 @@ export function generateStudySuggestions(plan, state, options = {}) {
   const duration = options.duration ?? 60;
   const weekStart = options.weekStart ?? startOfWeek(now);
   const weekEnd = dateForWeekDay(weekStart, 7);
-  const weekStart = options.weekStart ? startOfWeek(options.weekStart) : null;
   const accepted =
     options.preserveAccepted === false
       ? []
@@ -655,10 +403,8 @@ export function generateStudySuggestions(plan, state, options = {}) {
       );
       suggestions.push({
         id: cryptoSafeId("suggestion"),
-        term,
         day: slot.day,
         date: slot.date,
-        date: weekStart ? addCalendarDays(weekStart, slot.day - 1) : undefined,
         start: slot.start,
         end: slot.start + sessionDuration,
         courseId: candidate.courseId,
@@ -699,17 +445,6 @@ export function validateImportedState(plan, value) {
     throw new Error("La versión de la copia no es compatible.");
   }
   const hydrated = hydrateState(plan, value);
-  const sourceSessionIds = new Set();
-  hydrated.timeEntries = hydrated.timeEntries.map((entry) => {
-    const validated = validateTimeEntry(plan, entry);
-    if (validated.sourceSessionId) {
-      if (sourceSessionIds.has(validated.sourceSessionId)) {
-        throw new Error("Una sesión de estudio aparece contabilizada más de una vez.");
-      }
-      sourceSessionIds.add(validated.sourceSessionId);
-    }
-    return validated;
-  });
   for (const course of plan.courses) {
     const selection = hydrated.selections[course.id];
     const optionIsValid =
