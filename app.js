@@ -22,13 +22,29 @@ import {
   validateImportedState,
 } from "./planner-core.js";
 
-const plan = await fetch("./data/planificacion.json").then((response) => {
+function normalizeGuideUrl(value) {
+  if (typeof value !== "string") return null;
+  try {
+    const url = new URL(value.trim());
+    return url.protocol === "https:" ? url.href : null;
+  } catch {
+    return null;
+  }
+}
+
+const plan = await fetch("./data/planificacion.json").then(async (response) => {
   if (!response.ok) throw new Error("No se pudo cargar la planificación.");
-  return response.json();
+  const data = await response.json();
+  data.courses = data.courses.map((course) => ({
+    ...course,
+    guideUrl: normalizeGuideUrl(course.guideUrl),
+  }));
+  return data;
 });
 
 const elements = {
   courseList: document.querySelector("#course-list"),
+  guideList: document.querySelector("#guide-list"),
   calendars: {
     1: document.querySelector("#calendar-term-1"),
     2: document.querySelector("#calendar-term-2"),
@@ -96,6 +112,7 @@ function selectTerm(term) {
   state.term = Number(term);
   syncTermInterface();
   renderCourses();
+  renderGuides();
   renderForms();
   renderMetrics();
   saveState();
@@ -217,6 +234,29 @@ function renderCourses() {
         </article>`;
     })
     .join("");
+}
+
+function renderGuides() {
+  const term = plan.academicTerms.find(({ id }) => id === state.term);
+  const courses = plan.courses.filter((course) => course.term === state.term);
+
+  elements.guideList.innerHTML = `<section class="guide-group" aria-labelledby="guide-term-${state.term}">
+    <h3 id="guide-term-${state.term}">${escapeHtml(term?.name ?? `Cuatrimestre ${state.term}`)}</h3>
+    <ul>
+      ${courses
+        .map((course) => {
+          const label = `Abrir la guía docente de ${course.name} en la web de la UGR`;
+          const link = course.guideUrl
+            ? `<a href="${escapeHtml(course.guideUrl)}" target="_blank" rel="noopener noreferrer" aria-label="${escapeHtml(label)}">Consultar guía <span aria-hidden="true">↗</span></a>`
+            : '<span class="guide-unavailable">Guía no disponible</span>';
+          return `<li class="guide-item">
+            <div><strong>${escapeHtml(course.abbreviation)}</strong><span>${escapeHtml(course.name)}</span></div>
+            ${link}
+          </li>`;
+        })
+        .join("")}
+    </ul>
+  </section>`;
 }
 
 function sessionsForTerm(term) {
@@ -541,6 +581,7 @@ function renderAvailability() {
 function render() {
   syncTermInterface();
   renderCourses();
+  renderGuides();
   renderCalendar();
   renderForms();
   renderTopics();
