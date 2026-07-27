@@ -96,17 +96,30 @@ h2 { margin-bottom: 0; font-size: 1.25rem; letter-spacing: -0.02em; }
   margin-bottom: 1rem; padding: 0.85rem 1rem; border: 1px solid #f0d9b7;
   border-radius: 12px; background: #fff9ed; color: #805219; font-size: 0.9rem;
 }
-.workspace { display: grid; grid-template-columns: minmax(280px, 340px) minmax(0, 1fr); gap: 1rem; align-items: start; }
+.workspace {
+  display: grid;
+  grid-template-columns:
+    minmax(280px, 0.85fr)
+    minmax(260px, 0.75fr)
+    minmax(360px, 1fr)
+    minmax(460px, 1.3fr)
+    minmax(380px, 1.1fr);
+  gap: 1rem;
+  align-items: start;
+  overflow-x: auto;
+  padding-bottom: 0.75rem;
+  scrollbar-gutter: stable;
+}
 .sidebar, .calendar-panel, .panel {
   border: 1px solid var(--line); border-radius: var(--radius); background: var(--paper); box-shadow: var(--shadow);
 }
-.sidebar { position: sticky; top: 88px; overflow: hidden; max-height: calc(100vh - 105px); }
+.sidebar { position: static; overflow: hidden; }
 .section-heading {
   display: flex; align-items: center; justify-content: space-between; gap: 1rem;
   padding: 1.15rem 1.25rem; border-bottom: 1px solid var(--line);
 }
 .section-heading--calendar { min-height: 78px; }
-.course-list { overflow-y: auto; max-height: calc(100vh - 183px); padding: 0.65rem; }
+.course-list { padding: 0.65rem; }
 .course-card { padding: 0.85rem; border-radius: 13px; transition: background 150ms ease; }
 .course-card + .course-card { border-top: 1px solid var(--line); border-radius: 0; }
 .course-card:hover { background: #fafbfe; }
@@ -167,7 +180,6 @@ h2 { margin-bottom: 0; font-size: 1.25rem; letter-spacing: -0.02em; }
 .conflict-chip { padding: 0.35rem 0.55rem; border: 0; border-radius: 8px; background: #ffe8eb; color: #9e3340; font: inherit; cursor: pointer; }
 .conflict-chip.is-accepted { background: #eef0f5; color: #596174; }
 
-.lower-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-top: 1rem; }
 .panel { overflow: hidden; }
 .compact-form { display: flex; align-items: end; flex-wrap: wrap; gap: 0.65rem; padding: 1rem 1.25rem; border-bottom: 1px solid var(--line); }
 .compact-form label { display: grid; gap: 0.3rem; color: var(--muted); font-size: 0.7rem; font-weight: 700; }
@@ -185,7 +197,6 @@ h2 { margin-bottom: 0; font-size: 1.25rem; letter-spacing: -0.02em; }
 .mastery { display: flex; align-items: center; gap: 0.5rem; }
 .mastery select { padding: 0.35rem; border: 1px solid var(--line); border-radius: 7px; }
 .item-actions { display: flex; gap: 0.3rem; }
-.study-panel { margin-top: 1rem; }
 .suggestion-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 0.75rem; min-height: 110px; padding: 1rem 1.25rem 1.25rem; }
 .suggestion-card { padding: 0.9rem; border: 1px solid var(--line); border-radius: 12px; background: #fbfcff; color: var(--ink); }
 .suggestion-card.is-accepted { border-color: #b9dfca; background: #f2fbf6; }
@@ -227,11 +238,14 @@ body > footer, .app-shell > footer { display: flex; justify-content: space-betwe
 
 @media (max-width: 1000px) {
   .metrics { grid-template-columns: repeat(2, 1fr); }
-  .workspace { grid-template-columns: 1fr; }
-  .sidebar { position: static; max-height: none; }
-  .course-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); max-height: none; }
+  .workspace {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    overflow-x: visible;
+    padding-bottom: 0;
+  }
+  .course-list { display: grid; grid-template-columns: 1fr; }
   .course-card + .course-card { border-top: 0; }
-  .lower-grid { grid-template-columns: 1fr; }
+  .workspace-panel--study { grid-column: 1 / -1; }
 }
 @media (max-width: 680px) {
   .topbar, .hero { align-items: stretch; flex-direction: column; }
@@ -244,6 +258,8 @@ body > footer, .app-shell > footer { display: flex; justify-content: space-betwe
   .metrics { grid-template-columns: 1fr 1fr; gap: 0.6rem; }
   .metrics article { padding: 0.8rem; }
   .metric-icon { display: none; }
+  .workspace { grid-template-columns: minmax(0, 1fr); }
+  .workspace-panel--study { grid-column: auto; }
   .course-list { grid-template-columns: 1fr; }
   .section-heading--calendar { align-items: stretch; flex-direction: column; }
   .task-form label { flex: 1 1 120px; }
