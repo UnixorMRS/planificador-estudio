@@ -61,6 +61,33 @@ test("todas las asignaturas ofrecen una guía HTTPS oficial de la UGR", async ()
   }
 });
 
+test("las obligatorias enlazan al doble grado salvo Estructura de Computadores", async () => {
+  const data = JSON.parse(
+    await readFile(new URL("../data/planificacion.json", import.meta.url), "utf8"),
+  );
+  const requiredCourses = data.courses.filter((course) => course.type === "required");
+  const doubleDegreeCourses = requiredCourses.filter((course) => course.id !== "ec");
+
+  assert.ok(doubleDegreeCourses.length > 0, "debe haber obligatorias propias del doble grado");
+  for (const course of doubleDegreeCourses) {
+    const guideUrl = new URL(course.guideUrl);
+    assert.equal(guideUrl.hostname, "grados.ugr.es", `${course.id} no usa el portal oficial de grados`);
+    assert.ok(
+      guideUrl.pathname.startsWith("/informaticaymatematicas/docencia/plan-estudios/"),
+      `${course.id} no enlaza al plan del doble grado`,
+    );
+  }
+
+  const ec = requiredCourses.find((course) => course.id === "ec");
+  assert.ok(ec, "falta la asignatura obligatoria EC");
+  assert.equal(
+    ec.guideUrl,
+    "https://grados.ugr.es/informatica/docencia/plan-estudios/estructura-computadores/guia-docente",
+    "EC debe conservar la guía del Grado en Ingeniería Informática",
+  );
+  assert.doesNotMatch(ec.guideUrl, /\/informaticaymatematicas\//);
+});
+
 test("el glosario separa teoría y prácticas y conserva el color de asignatura", async () => {
   const [html, source] = await Promise.all([
     readFile(new URL("../index.html", import.meta.url), "utf8"),
