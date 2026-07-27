@@ -1,34 +1,53 @@
 # Planificador de estudio
 
-Aplicación web sencilla para organizar asignaturas y tareas de estudio. Esta
-primera versión contiene únicamente la estructura visual y queda preparada para
-incorporar interacciones en futuras iteraciones.
+Aplicación web personal para construir el horario académico 2026/27 sin
+confundir solicitudes con adjudicaciones y convertir tareas, exámenes y avance
+del temario en sesiones de estudio ajustables.
 
-## Estructura del proyecto
+## Funciones
+
+- Horarios oficiales normalizados por cuatrimestre, grupo y subgrupo.
+- Optativas adjudicables en cualquier combinación hasta 24 ECTS.
+- Detección de solapes, incluido el conflicto aceptado EC–Análisis Funcional.
+- Seguimiento por temas, dificultad y dominio.
+- Tareas y exámenes con carga estimada.
+- Sugerencias de estudio dentro de los huecos libres configurables.
+- Decisión explícita entre conservar o rehacer sesiones al recalcular.
+- Persistencia local y exportación/importación JSON.
+
+## Ejecutar
+
+La aplicación carga `data/planificacion.json`, por lo que debe servirse por
+HTTP:
+
+```bash
+npm run serve
+```
+
+Después abre `http://localhost:8000`.
+
+No hay dependencias de ejecución ni proceso de compilación.
+
+## Pruebas
+
+```bash
+npm test
+```
+
+Las pruebas cubren créditos, adjudicaciones no ligadas a prioridad, subgrupos,
+conflictos, generación de sesiones e importación.
+
+## Estructura
 
 ```text
 .
-├── index.html  # Estructura semántica de la página
-├── styles.css  # Estilos, distribución adaptable y variables visuales
-├── app.js      # Punto de entrada para la futura lógica de la aplicación
-└── README.md   # Documentación del proyecto
+├── data/planificacion.json   # Fuente estructurada de asignaturas y horarios
+├── docs/planificacion.md     # Resumen humano y reglas
+├── index.html                # Interfaz
+├── styles.css                # Diseño adaptable
+├── app.js                    # Estado, renderizado e interacciones
+├── planner-core.js           # Motor puro y comprobable
+└── test/                     # Pruebas con node:test
 ```
 
-- **`index.html`** incluye la cabecera, el área de asignaturas, el resumen de
-  próximas tareas y el pie de página. También enlaza la hoja de estilos y el
-  archivo JavaScript.
-- **`styles.css`** define la apariencia base, los paneles y el comportamiento
-  adaptable para pantallas pequeñas.
-- **`app.js`** reserva el punto de entrada para añadir las interacciones sin
-  incorporar todavía lógica compleja.
-
-## Cómo abrir el proyecto
-
-No requiere instalación ni dependencias. Abre `index.html` directamente en el
-navegador o sirve la carpeta con un servidor web local, por ejemplo:
-
-```bash
-python3 -m http.server 8000
-```
-
-Después, visita `http://localhost:8000`.
+Los documentos originales permanecen en `docs/fuentes/`.

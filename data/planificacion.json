@@ -1,0 +1,383 @@
+{
+  "schemaVersion": 1,
+  "academicYear": "2026/27",
+  "maxElectiveCredits": 24,
+  "sources": [
+    {
+      "id": "gii",
+      "name": "Horarios GII (26-27)",
+      "path": "docs/fuentes/Horarios GII (26-27).pdf"
+    },
+    {
+      "id": "giim",
+      "name": "Horarios GIIM (26-27)",
+      "path": "docs/fuentes/Horarios GIIM (26-27).pdf"
+    },
+    {
+      "id": "math-giim",
+      "name": "Horario de Matemáticas para GIIM 2026-27",
+      "path": "docs/fuentes/297_HorarioInformaticaMatematicas2026-27.pdf"
+    },
+    {
+      "id": "math-general",
+      "name": "Horario del Grado en Matemáticas 2026-27",
+      "url": "https://fciencias.ugr.es/sites/default/files/documents/Horarios/2026_2027/270_HorarioMatematicas2026-27.pdf"
+    },
+    {
+      "id": "planning",
+      "name": "Planificación académica de Manuel",
+      "path": "docs/fuentes/Planificacion_curso_2026-27_Manuel.docx"
+    }
+  ],
+  "courses": [
+    {
+      "id": "ec",
+      "abbreviation": "EC",
+      "name": "Estructura de Computadores",
+      "term": 1,
+      "type": "required",
+      "credits": 6,
+      "source": "gii",
+      "certainty": "planned",
+      "initialActive": true,
+      "initialEnrollment": "planned_change",
+      "initialOptionId": "b2",
+      "color": "#e4572e",
+      "notes": "Cambio excepcional a GII B/B2 pendiente de solicitar al inicio de curso.",
+      "commonSessions": [
+        { "id": "ec-b-theory", "day": 5, "start": 570, "end": 690, "component": "Teoría", "room": "0.2" }
+      ],
+      "options": [
+        {
+          "id": "b2",
+          "label": "B2 · viernes",
+          "sessions": [
+            { "id": "ec-b2-practice", "day": 5, "start": 690, "end": 810, "component": "Práctica B2", "room": "2.9" }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "functional-analysis",
+      "abbreviation": "AF",
+      "name": "Análisis Funcional",
+      "term": 1,
+      "type": "required",
+      "credits": 6,
+      "source": "math-giim",
+      "certainty": "confirmed",
+      "initialActive": true,
+      "initialEnrollment": "not_applicable",
+      "color": "#6b4eff",
+      "notes": "El conflicto del viernes con EC está aceptado; se prioriza EC.",
+      "commonSessions": [
+        { "id": "af-wednesday", "day": 3, "start": 720, "end": 780, "component": "Teoría" },
+        { "id": "af-thursday-practice", "day": 4, "start": 720, "end": 780, "component": "Práctica" },
+        { "id": "af-thursday", "day": 4, "start": 780, "end": 840, "component": "Teoría" },
+        { "id": "af-friday", "day": 5, "start": 660, "end": 720, "component": "Teoría · ausencia prevista" }
+      ],
+      "options": []
+    },
+    {
+      "id": "scd",
+      "abbreviation": "SCD",
+      "name": "Sistemas Concurrentes y Distribuidos",
+      "term": 1,
+      "type": "required",
+      "credits": 6,
+      "source": "giim",
+      "certainty": "pending",
+      "initialActive": true,
+      "initialEnrollment": "requested",
+      "color": "#147d92",
+      "commonSessions": [
+        { "id": "scd-theory", "day": 4, "start": 1050, "end": 1170, "component": "Teoría", "room": "0.2" }
+      ],
+      "options": [
+        { "id": "a1", "label": "A1 · jueves", "sessions": [{ "id": "scd-a1", "day": 4, "start": 1170, "end": 1290, "component": "Práctica A1", "room": "2.1" }] },
+        { "id": "a2", "label": "A2 · miércoles", "sessions": [{ "id": "scd-a2", "day": 3, "start": 930, "end": 1050, "component": "Práctica A2", "room": "2.3" }] },
+        { "id": "a3", "label": "A3 · viernes", "sessions": [{ "id": "scd-a3", "day": 5, "start": 930, "end": 1050, "component": "Práctica A3", "room": "3.5" }] },
+        { "id": "a4", "label": "A4 · miércoles", "sessions": [{ "id": "scd-a4", "day": 3, "start": 930, "end": 1050, "component": "Práctica A4", "room": "2.6" }] }
+      ]
+    },
+    {
+      "id": "fr",
+      "abbreviation": "FR",
+      "name": "Fundamentos de Redes",
+      "term": 1,
+      "type": "required",
+      "credits": 6,
+      "source": "giim",
+      "certainty": "pending",
+      "initialActive": true,
+      "initialEnrollment": "requested",
+      "color": "#278f61",
+      "commonSessions": [
+        { "id": "fr-theory", "day": 3, "start": 1050, "end": 1170, "component": "Teoría", "room": "0.3" }
+      ],
+      "options": [
+        { "id": "a1", "label": "A1 · viernes", "sessions": [{ "id": "fr-a1", "day": 5, "start": 1170, "end": 1290, "component": "Práctica A1", "room": "3.7" }] },
+        { "id": "a2", "label": "A2 · miércoles", "sessions": [{ "id": "fr-a2", "day": 3, "start": 1170, "end": 1290, "component": "Práctica A2", "room": "3.7" }] },
+        { "id": "a3", "label": "A3 · jueves", "sessions": [{ "id": "fr-a3", "day": 4, "start": 1170, "end": 1290, "component": "Práctica A3", "room": "3.7" }] }
+      ]
+    },
+    {
+      "id": "ddsi",
+      "abbreviation": "DDSI",
+      "name": "Diseño y Desarrollo de Sistemas de Información",
+      "term": 1,
+      "type": "required",
+      "credits": 6,
+      "source": "giim",
+      "certainty": "pending",
+      "initialActive": true,
+      "initialEnrollment": "requested",
+      "color": "#9b5de5",
+      "commonSessions": [
+        { "id": "ddsi-theory", "day": 2, "start": 630, "end": 690, "component": "Teoría", "room": "0.7" }
+      ],
+      "options": [
+        { "id": "a1", "label": "A1", "sessions": [{ "id": "ddsi-a1", "day": 2, "start": 690, "end": 870, "component": "Práctica A1", "room": "2.4" }] },
+        { "id": "a2", "label": "A2", "sessions": [{ "id": "ddsi-a2a", "day": 2, "start": 510, "end": 630, "component": "Práctica A2", "room": "3.10" }, { "id": "ddsi-a2b", "day": 1, "start": 810, "end": 870, "component": "Práctica A2", "room": "2.6" }] },
+        { "id": "a3", "label": "A3", "sessions": [{ "id": "ddsi-a3", "day": 1, "start": 510, "end": 690, "component": "Práctica A3", "room": "3.5" }] }
+      ]
+    },
+    {
+      "id": "ig",
+      "abbreviation": "IG",
+      "name": "Informática Gráfica",
+      "term": 1,
+      "type": "required",
+      "credits": 6,
+      "source": "giim",
+      "certainty": "pending",
+      "initialActive": true,
+      "initialEnrollment": "requested",
+      "color": "#d16f23",
+      "commonSessions": [
+        { "id": "ig-theory", "day": 1, "start": 690, "end": 810, "component": "Teoría", "room": "0.7" }
+      ],
+      "options": [
+        { "id": "a1", "label": "A1", "sessions": [{ "id": "ig-a1", "day": 1, "start": 570, "end": 690, "component": "Práctica A1", "room": "2.7" }] },
+        { "id": "a2", "label": "A2", "sessions": [{ "id": "ig-a2", "day": 2, "start": 690, "end": 810, "component": "Práctica A2", "room": "2.7" }] },
+        { "id": "a3", "label": "A3", "sessions": [{ "id": "ig-a3", "day": 2, "start": 510, "end": 630, "component": "Práctica A3", "room": "2.7" }] }
+      ]
+    },
+    {
+      "id": "ac",
+      "abbreviation": "AC",
+      "name": "Arquitectura de Computadores",
+      "term": 2,
+      "type": "required",
+      "credits": 6,
+      "source": "giim",
+      "certainty": "pending",
+      "initialActive": true,
+      "initialEnrollment": "requested",
+      "color": "#2878b5",
+      "commonSessions": [
+        { "id": "ac-theory", "day": 5, "start": 570, "end": 690, "component": "Teoría", "room": "1.7" }
+      ],
+      "options": [
+        { "id": "a1", "label": "A1 · miércoles", "sessions": [{ "id": "ac-a1", "day": 3, "start": 690, "end": 810, "component": "Práctica A1", "room": "2.6" }] },
+        { "id": "a2", "label": "A2 · viernes", "sessions": [{ "id": "ac-a2", "day": 5, "start": 690, "end": 810, "component": "Práctica A2", "room": "2.9" }] }
+      ]
+    },
+    {
+      "id": "ia",
+      "abbreviation": "IA",
+      "name": "Inteligencia Artificial",
+      "term": 2,
+      "type": "required",
+      "credits": 6,
+      "source": "giim",
+      "certainty": "pending",
+      "initialActive": true,
+      "initialEnrollment": "requested",
+      "color": "#008c8c",
+      "commonSessions": [
+        { "id": "ia-theory", "day": 5, "start": 1050, "end": 1170, "component": "Teoría", "room": "0.4" }
+      ],
+      "options": [
+        { "id": "a1", "label": "A1 · jueves tarde", "sessions": [{ "id": "ia-a1", "day": 4, "start": 1170, "end": 1290, "component": "Práctica A1", "room": "2.3" }] },
+        { "id": "a2", "label": "A2 · jueves", "sessions": [{ "id": "ia-a2", "day": 4, "start": 1050, "end": 1170, "component": "Práctica A2", "room": "2.7" }] },
+        { "id": "a3", "label": "A3 · viernes", "sessions": [{ "id": "ia-a3", "day": 5, "start": 1170, "end": 1290, "component": "Práctica A3", "room": "2.3" }] }
+      ]
+    },
+    {
+      "id": "ise",
+      "abbreviation": "IS",
+      "name": "Ingeniería de Servidores",
+      "term": 2,
+      "type": "required",
+      "credits": 6,
+      "source": "giim",
+      "certainty": "pending",
+      "initialActive": true,
+      "initialEnrollment": "requested",
+      "color": "#bc4b7a",
+      "notes": "Solo queda por cursar el componente práctico; la teoría está aprobada.",
+      "commonSessions": [],
+      "options": [
+        { "id": "a1", "label": "A1 · jueves", "sessions": [{ "id": "ise-a1", "day": 4, "start": 1050, "end": 1170, "component": "Práctica A1", "room": "3.5" }] },
+        { "id": "a2", "label": "A2 · viernes", "sessions": [{ "id": "ise-a2", "day": 5, "start": 1170, "end": 1290, "component": "Práctica A2", "room": "2.1" }] },
+        { "id": "a3", "label": "A3 · jueves tarde", "sessions": [{ "id": "ise-a3", "day": 4, "start": 1170, "end": 1290, "component": "Práctica A3", "room": "2.1" }] },
+        { "id": "a4", "label": "A4 · jueves", "sessions": [{ "id": "ise-a4", "day": 4, "start": 1050, "end": 1170, "component": "Práctica A4", "room": "2.6" }] }
+      ]
+    },
+    {
+      "id": "diu",
+      "abbreviation": "DIU",
+      "name": "Diseño de Interfaces de Usuario",
+      "term": 2,
+      "type": "elective",
+      "credits": 6,
+      "priority": 1,
+      "source": "gii",
+      "certainty": "pending",
+      "initialActive": false,
+      "initialEnrollment": "requested",
+      "color": "#ff7a59",
+      "commonSessions": [{ "id": "diu-theory", "day": 4, "start": 930, "end": 1050, "component": "Teoría B", "room": "0.6" }],
+      "options": [
+        { "id": "b1", "label": "B1 · lunes", "sessions": [{ "id": "diu-b1", "day": 1, "start": 1050, "end": 1170, "component": "Práctica B1", "room": "2.2" }] },
+        { "id": "b2", "label": "B2 · viernes", "sessions": [{ "id": "diu-b2", "day": 5, "start": 1050, "end": 1170, "component": "Práctica B2", "room": "3.2" }] }
+      ]
+    },
+    {
+      "id": "abd",
+      "abbreviation": "ABD",
+      "name": "Administración de Bases de Datos",
+      "term": 2,
+      "type": "elective",
+      "credits": 6,
+      "priority": 2,
+      "source": "gii",
+      "certainty": "pending",
+      "initialActive": false,
+      "initialEnrollment": "requested",
+      "color": "#8a5a44",
+      "commonSessions": [{ "id": "abd-theory", "day": 2, "start": 930, "end": 1050, "component": "Teoría A", "room": "0.7" }],
+      "options": [
+        { "id": "a1", "label": "A1 · jueves", "sessions": [{ "id": "abd-a1", "day": 4, "start": 1050, "end": 1170, "component": "Práctica A1", "room": "2.3" }] },
+        { "id": "a2", "label": "A2 · martes", "sessions": [{ "id": "abd-a2", "day": 2, "start": 1050, "end": 1170, "component": "Práctica A2", "room": "2.6" }] }
+      ]
+    },
+    {
+      "id": "sibw",
+      "abbreviation": "SIBW",
+      "name": "Sistemas de Información Basados en Web",
+      "term": 2,
+      "type": "elective",
+      "credits": 6,
+      "priority": 3,
+      "source": "gii",
+      "certainty": "pending",
+      "initialActive": false,
+      "initialEnrollment": "requested",
+      "color": "#417b5a",
+      "commonSessions": [{ "id": "sibw-theory", "day": 2, "start": 510, "end": 630, "component": "Teoría A", "room": "0.6 auxiliar" }],
+      "options": [
+        { "id": "a1", "label": "A1 · viernes", "sessions": [{ "id": "sibw-a1", "day": 5, "start": 690, "end": 810, "component": "Práctica A1", "room": "3.5" }] },
+        { "id": "a2", "label": "A2 · jueves", "sessions": [{ "id": "sibw-a2", "day": 4, "start": 690, "end": 810, "component": "Práctica A2", "room": "2.2" }] }
+      ]
+    },
+    {
+      "id": "estcomp",
+      "abbreviation": "ESTCOMP",
+      "name": "Estadística Computacional",
+      "term": 2,
+      "type": "elective",
+      "credits": 6,
+      "priority": 4,
+      "source": "math-general",
+      "certainty": "pending",
+      "initialActive": false,
+      "initialEnrollment": "requested",
+      "color": "#735d78",
+      "notes": "Optativa de Matemáticas, grupo A en español.",
+      "commonSessions": [
+        { "id": "estcomp-monday", "day": 1, "start": 960, "end": 1080, "component": "Grupo A" },
+        { "id": "estcomp-wednesday-theory", "day": 3, "start": 960, "end": 1020, "component": "Grupo A" },
+        { "id": "estcomp-wednesday-practice", "day": 3, "start": 1020, "end": 1080, "component": "Práctica A" }
+      ],
+      "options": []
+    },
+    {
+      "id": "mh",
+      "abbreviation": "MH",
+      "name": "Metaheurísticas",
+      "term": 2,
+      "type": "elective",
+      "credits": 6,
+      "priority": 5,
+      "source": "gii",
+      "certainty": "pending",
+      "initialActive": false,
+      "initialEnrollment": "requested",
+      "color": "#b64b73",
+      "commonSessions": [{ "id": "mh-theory", "day": 1, "start": 1050, "end": 1170, "component": "Teoría B", "room": "0.6" }],
+      "options": [
+        { "id": "b1", "label": "B1 · jueves", "sessions": [{ "id": "mh-b1", "day": 4, "start": 930, "end": 1050, "component": "Práctica B1", "room": "1.1" }] },
+        { "id": "b2", "label": "B2 · lunes", "sessions": [{ "id": "mh-b2", "day": 1, "start": 930, "end": 1050, "component": "Práctica B2", "room": "1.1" }] }
+      ]
+    },
+    {
+      "id": "cuia",
+      "abbreviation": "CUIA",
+      "name": "Computación Ubicua e Inteligencia Ambiental",
+      "term": 2,
+      "type": "elective",
+      "credits": 6,
+      "priority": 6,
+      "source": "gii",
+      "certainty": "pending",
+      "initialActive": false,
+      "initialEnrollment": "requested",
+      "color": "#0081a7",
+      "commonSessions": [{ "id": "cuia-theory", "day": 2, "start": 1050, "end": 1170, "component": "Teoría A", "room": "0.7" }],
+      "options": [
+        { "id": "a1", "label": "A1 · jueves", "sessions": [{ "id": "cuia-a1", "day": 4, "start": 930, "end": 1050, "component": "Práctica A1", "room": "2.8" }] },
+        { "id": "a2", "label": "A2 · martes", "sessions": [{ "id": "cuia-a2", "day": 2, "start": 930, "end": 1050, "component": "Práctica A2", "room": "2.3" }] }
+      ]
+    },
+    {
+      "id": "as",
+      "abbreviation": "AS",
+      "name": "Arquitectura de Sistemas",
+      "term": 2,
+      "type": "elective",
+      "credits": 6,
+      "priority": 7,
+      "source": "gii",
+      "certainty": "pending",
+      "initialActive": false,
+      "initialEnrollment": "requested",
+      "color": "#5a6f3d",
+      "commonSessions": [{ "id": "as-theory", "day": 2, "start": 1050, "end": 1170, "component": "Teoría A", "room": "1.7" }],
+      "options": [
+        { "id": "a1", "label": "A1 · viernes", "sessions": [{ "id": "as-a1", "day": 5, "start": 930, "end": 1050, "component": "Práctica A1", "room": "1.7" }] },
+        { "id": "a2", "label": "A2 · miércoles", "sessions": [{ "id": "as-a2", "day": 3, "start": 930, "end": 1050, "component": "Práctica A2", "room": "1.7" }] }
+      ]
+    },
+    {
+      "id": "pw",
+      "abbreviation": "PW",
+      "name": "Programación Web",
+      "term": 2,
+      "type": "elective",
+      "credits": 6,
+      "priority": 8,
+      "source": "gii",
+      "certainty": "pending",
+      "initialActive": false,
+      "initialEnrollment": "requested",
+      "color": "#ef8354",
+      "commonSessions": [{ "id": "pw-theory", "day": 1, "start": 930, "end": 1050, "component": "Teoría A", "room": "0.7" }],
+      "options": [
+        { "id": "a1", "label": "A1 · martes", "sessions": [{ "id": "pw-a1", "day": 2, "start": 1050, "end": 1170, "component": "Práctica A1", "room": "3.3" }] },
+        { "id": "a2", "label": "A2 · miércoles", "sessions": [{ "id": "pw-a2", "day": 3, "start": 1050, "end": 1170, "component": "Práctica A2", "room": "2.4" }] }
+      ]
+    }
+  ]
+}
