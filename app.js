@@ -1,8 +1,10 @@
 import {
   DAYS,
   STORAGE_KEY,
+  activitiesForWeek,
   canAwardElective,
   createInitialState,
+  createActivity,
   cryptoSafeId,
   electiveCredits,
   evaluateCourseAlternatives,
@@ -10,8 +12,12 @@ import {
   generateStudySuggestions,
   getActiveSessions,
   hydrateState,
+  dateForWeekDay,
+  dateToDay,
   minutesToTime,
   timeToMinutes,
+  startOfWeek,
+  updateActivity,
   validateImportedState,
 } from "./planner-core.js";
 
@@ -35,10 +41,12 @@ const elements = {
   settingsDialog: document.querySelector("#settings-dialog"),
   recalcDialog: document.querySelector("#recalc-dialog"),
   availabilityFields: document.querySelector("#availability-fields"),
+  monthCalendar: document.querySelector("#month-calendar"),
 };
 
 let calendarView = "classes";
 let state = loadState();
+let selectedWeek = startOfWeek(new Date());
 
 function loadState() {
   try {
@@ -184,7 +192,20 @@ function activeCalendarSessions() {
             kind: "study",
           }))
       : [];
-  return [...classes, ...studies];
+  const activities = activitiesForWeek(state, selectedWeek).map((activity) => {
+    const start = activity.startTime ? timeToMinutes(activity.startTime) : 1080;
+    return {
+      ...activity,
+      day: dateToDay(activity.date),
+      start,
+      end: start + activity.estimatedMinutes,
+      abbreviation: courseById(activity.courseId)?.abbreviation ?? "ACT",
+      component: activity.title,
+      color: activity.completed ? "#7a8594" : "#7057d9",
+      kind: "activity",
+    };
+  });
+  return [...classes, ...studies, ...activities];
 }
 
 function renderCalendar() {
@@ -202,7 +223,7 @@ function renderCalendar() {
   elements.calendar.classList.toggle("is-week", calendarView === "all");
   elements.calendar.innerHTML = `
     <div class="calendar-header"></div>
-    ${visibleDays.map((day) => `<div class="calendar-header">${day.short}</div>`).join("")}
+    ${visibleDays.map((day) => `<div class="calendar-header">${day.short}<small>${dateForWeekDay(selectedWeek, day.id).slice(8)}</small></div>`).join("")}
     <div class="time-axis">
       ${Array.from({ length: (end - start) / 60 + 1 }, (_, index) => {
         const minute = start + index * 60;
@@ -211,7 +232,7 @@ function renderCalendar() {
     </div>
     ${visibleDays
       .map(
-        (day) => `<div class="day-column" data-day="${day.id}">
+        (day) => `<div class="day-column" data-day="${day.id}" data-date="${dateForWeekDay(selectedWeek, day.id)}" title="Pulsa para crear una actividad">
           ${sessions
             .filter((session) => session.day === day.id)
             .map((session) => {
@@ -220,7 +241,7 @@ function renderCalendar() {
               const conflictClass = conflictSessionIds.has(session.id)
                 ? "calendar-event--conflict"
                 : "";
-              return `<div class="calendar-event ${session.kind === "study" ? "calendar-event--study" : ""} ${conflictClass}"
+              return `<div class="calendar-event ${session.kind === "study" ? "calendar-event--study" : ""} ${session.kind === "activity" ? "calendar-event--activity" : ""} ${conflictClass}" ${session.kind === "activity" ? `data-edit-task="${session.id}"` : ""}
                 style="top:${top}px;height:${height}px;--event-color:${session.color}"
                 title="${escapeHtml(session.courseName ?? session.title)} · ${minutesToTime(session.start)}–${minutesToTime(session.end)}">
                 <strong>${escapeHtml(session.abbreviation)}</strong>
@@ -239,6 +260,23 @@ function renderCalendar() {
     );
   }
   renderConflicts(conflicts);
+  document.querySelector("#week-label").textContent = `${selectedWeek.split("-").reverse().join("/")} – ${dateForWeekDay(selectedWeek, 7).split("-").reverse().join("/")}`;
+  renderMonth();
+}
+
+function renderMonth() {
+  const focus = new Date(`${selectedWeek}T12:00:00`);
+  const year = focus.getFullYear();
+  const month = focus.getMonth();
+  document.querySelector("#month-label").textContent = new Intl.DateTimeFormat("es-ES", { month: "long", year: "numeric" }).format(focus);
+  const first = new Date(year, month, 1, 12);
+  first.setDate(first.getDate() - ((first.getDay() || 7) - 1));
+  elements.monthCalendar.innerHTML = Array.from({ length: 42 }, (_, index) => {
+    const date = new Date(first); date.setDate(first.getDate() + index);
+    const iso = date.toISOString().slice(0, 10);
+    const items = state.tasks.filter((item) => item.term === state.term && item.date === iso);
+    return `<button type="button" class="month-day ${date.getMonth() !== month ? "is-outside" : ""}" data-activity-date="${iso}"><strong>${date.getDate()}</strong><span class="activity-dots">${items.slice(0, 4).map(() => '<i class="activity-dot"></i>').join("")}</span></button>`;
+  }).join("");
 }
 
 function renderConflicts(conflicts) {
@@ -263,7 +301,7 @@ function renderConflicts(conflicts) {
 
 function courseOptions() {
   return plan.courses
-    .filter((course) => state.selections[course.id]?.active)
+    .filter((course) => course.term === state.term && state.selections[course.id]?.active)
     .map(
       (course) =>
         `<option value="${course.id}">${escapeHtml(course.abbreviation)} · ${escapeHtml(course.name)}</option>`,
@@ -297,7 +335,8 @@ function renderTopics() {
   elements.topicList.innerHTML = state.topics
     .map((topic) => {
       const course = courseById(topic.courseId);
-      return `<div class="list-item">
+      const labels = { task: "Tarea", homework: "Deberes", practice: "Práctica", exam: "Examen" };
+      return `<div class="list-item ${task.completed ? "is-completed" : ""}">
         <div>
           <strong>${escapeHtml(topic.name)}</strong>
           <small>${escapeHtml(course?.abbreviation ?? "")} · dificultad ${topic.difficulty}/5</small>
@@ -318,8 +357,8 @@ function renderTopics() {
 }
 
 function renderTasks() {
-  const sorted = [...state.tasks].sort(
-    (first, second) => new Date(first.dueAt) - new Date(second.dueAt),
+  const sorted = state.tasks.filter((task) => task.term === state.term).sort(
+    (first, second) => new Date(first.date) - new Date(second.date),
   );
   if (!sorted.length) {
     elements.taskList.className = "item-list empty-copy";
@@ -333,16 +372,17 @@ function renderTasks() {
       const date = new Intl.DateTimeFormat("es-ES", {
         day: "numeric",
         month: "short",
-      }).format(new Date(`${task.dueAt}T12:00:00`));
+      }).format(new Date(`${task.date}T12:00:00`));
       return `<div class="list-item">
         <div>
           <strong>${escapeHtml(task.title)}</strong>
-          <small>${task.type === "exam" ? "Examen" : "Tarea"} · ${escapeHtml(course?.abbreviation ?? "")} · ${date} · ${task.estimatedMinutes / 60} h</small>
+          <small>${labels[task.type] ?? "Tarea"} · ${escapeHtml(course?.abbreviation ?? "")} · ${date}${task.startTime ? `, ${task.startTime}` : ""} · ${task.estimatedMinutes} min</small>
         </div>
         <div class="item-actions">
           <button class="button button--small ${task.completed ? "button--ghost" : ""}" data-toggle-task="${task.id}">
             ${task.completed ? "Reabrir" : "Completar"}
           </button>
+          <button class="button button--small button--ghost" data-edit-task="${task.id}">Editar</button>
           <button class="icon-button" data-delete-task="${task.id}" aria-label="Eliminar tarea">×</button>
         </div>
       </div>`;
@@ -441,6 +481,25 @@ function render() {
 }
 
 document.addEventListener("click", (event) => {
+  const editTask = event.target.closest("[data-edit-task]");
+  if (editTask) {
+    beginTaskEdit(editTask.dataset.editTask);
+    return;
+  }
+
+  const activityDate = event.target.closest("[data-activity-date]");
+  if (activityDate) {
+    prepareTaskForm(activityDate.dataset.activityDate);
+    return;
+  }
+
+  const dayColumn = event.target.closest(".day-column");
+  if (dayColumn && event.target === dayColumn) {
+    const rect = dayColumn.getBoundingClientRect();
+    const minute = Math.max(480, Math.min(1260, 480 + Math.round((event.clientY - rect.top) / (54 / 30) / 15) * 15));
+    prepareTaskForm(dayColumn.dataset.date, minutesToTime(minute));
+    return;
+  }
   const termButton = event.target.closest("[data-term]");
   if (termButton) {
     update(() => {
@@ -573,6 +632,40 @@ document.addEventListener("click", (event) => {
   }
 });
 
+function prepareTaskForm(date, startTime = "") {
+  elements.taskForm.reset();
+  elements.taskForm.elements.id.value = "";
+  elements.taskForm.elements.date.value = date;
+  elements.taskForm.elements.startTime.value = startTime;
+  elements.taskForm.elements.estimatedMinutes.value = 120;
+  elements.taskForm.elements.importance.value = 3;
+  elements.taskForm.querySelector("[data-task-submit]").textContent = "Añadir";
+  elements.taskForm.querySelector("[data-cancel-task-edit]").hidden = true;
+  elements.taskForm.scrollIntoView({ behavior: "smooth", block: "center" });
+  elements.taskForm.elements.title.focus({ preventScroll: true });
+}
+
+function beginTaskEdit(id) {
+  const task = state.tasks.find((item) => item.id === id);
+  if (!task) return;
+  for (const field of ["id", "type", "courseId", "title", "date", "startTime", "estimatedMinutes", "importance"]) {
+    if (elements.taskForm.elements[field]) elements.taskForm.elements[field].value = task[field] ?? "";
+  }
+  elements.taskForm.querySelector("[data-task-submit]").textContent = "Guardar";
+  elements.taskForm.querySelector("[data-cancel-task-edit]").hidden = false;
+  elements.taskForm.scrollIntoView({ behavior: "smooth", block: "center" });
+}
+
+elements.taskForm.querySelector("[data-cancel-task-edit]").addEventListener("click", () => prepareTaskForm(""));
+document.querySelector("#previous-week").addEventListener("click", () => {
+  selectedWeek = dateForWeekDay(selectedWeek, -6);
+  renderCalendar();
+});
+document.querySelector("#next-week").addEventListener("click", () => {
+  selectedWeek = dateForWeekDay(selectedWeek, 8);
+  renderCalendar();
+});
+
 elements.courseList.addEventListener("change", (event) => {
   const activeId = event.target.dataset.courseActive;
   if (activeId) {
@@ -642,25 +735,33 @@ elements.topicForm.addEventListener("submit", (event) => {
 elements.taskForm.addEventListener("submit", (event) => {
   event.preventDefault();
   const data = new FormData(event.currentTarget);
-  update(
-    () => {
-      state.tasks.push({
-        id: cryptoSafeId("task"),
+  try {
+    update(
+      () => {
+        const values = {
         type: data.get("type"),
+        term: state.term,
         courseId: data.get("courseId"),
         title: data.get("title").trim(),
-        dueAt: data.get("dueAt"),
-        estimatedMinutes: Number(data.get("hours")) * 60,
-        scheduledMinutes: 0,
+        date: data.get("date"),
+        startTime: data.get("startTime"),
+        estimatedMinutes: Number(data.get("estimatedMinutes")),
         importance: Number(data.get("importance")),
-        completed: false,
-      });
-      event.currentTarget.reset();
-      event.currentTarget.elements.hours.value = 2;
-      event.currentTarget.elements.importance.value = 3;
-    },
-    { regenerate: true },
-  );
+        };
+        const id = data.get("id");
+        if (id) updateActivity(plan, state, id, values);
+        else createActivity(plan, state, values);
+        event.currentTarget.reset();
+        event.currentTarget.elements.estimatedMinutes.value = 120;
+        event.currentTarget.elements.importance.value = 3;
+        event.currentTarget.querySelector("[data-task-submit]").textContent = "Añadir";
+        event.currentTarget.querySelector("[data-cancel-task-edit]").hidden = true;
+      },
+      { regenerate: true },
+    );
+  } catch (error) {
+    announce(error.message);
+  }
 });
 
 function runGenerator(preserveAccepted) {
@@ -678,6 +779,7 @@ function runGenerator(preserveAccepted) {
     state.suggestions = generateStudySuggestions(plan, state, {
       preserveAccepted,
       term: state.term,
+      weekStart: selectedWeek,
     });
     state.needsRegeneration = false;
   });

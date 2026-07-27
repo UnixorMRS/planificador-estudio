@@ -9,7 +9,89 @@ export const DAYS = [
 ];
 
 export const STORAGE_KEY = "planificador-estudio:v2";
-export const STATE_VERSION = 2;
+export const STATE_VERSION = 3;
+export const ACTIVITY_TYPES = ["task", "homework", "practice", "exam"];
+
+function validDate(value) {
+  return /^\d{4}-\d{2}-\d{2}$/.test(value ?? "") && !Number.isNaN(Date.parse(`${value}T12:00:00`));
+}
+
+export function dateToDay(value) {
+  const day = new Date(`${value}T12:00:00`).getDay();
+  return day || 7;
+}
+
+export function startOfWeek(value = new Date()) {
+  const date = new Date(value);
+  date.setHours(12, 0, 0, 0);
+  date.setDate(date.getDate() - ((date.getDay() || 7) - 1));
+  return date.toISOString().slice(0, 10);
+}
+
+export function dateForWeekDay(weekStart, day) {
+  const date = new Date(`${weekStart}T12:00:00`);
+  date.setDate(date.getDate() + Number(day) - 1);
+  return date.toISOString().slice(0, 10);
+}
+
+export function normalizeActivity(plan, activity, fallbackTerm = 1) {
+  const course = plan.courses.find(({ id }) => id === activity?.courseId);
+  const date = activity?.date ?? activity?.dueAt ?? "";
+  return {
+    ...activity,
+    type: ACTIVITY_TYPES.includes(activity?.type) ? activity.type : "task",
+    term: Number(activity?.term ?? course?.term ?? fallbackTerm),
+    date,
+    dueAt: date,
+    startTime: /^\d{2}:\d{2}$/.test(activity?.startTime ?? "") ? activity.startTime : "",
+    estimatedMinutes: Math.max(1, Number(activity?.estimatedMinutes ?? 120)),
+    completed: Boolean(activity?.completed),
+    courseId: activity?.courseId ?? "",
+    scheduledMinutes: Math.max(0, Number(activity?.scheduledMinutes ?? 0)),
+  };
+}
+
+export function validateActivity(plan, activity) {
+  const normalized = normalizeActivity(plan, activity);
+  const course = plan.courses.find(({ id }) => id === normalized.courseId);
+  if (!course) throw new Error("Selecciona una asignatura válida.");
+  if (course.term !== normalized.term) {
+    throw new Error("La asignatura no pertenece al cuatrimestre indicado.");
+  }
+  if (!validDate(normalized.date)) throw new Error("La fecha de la actividad no es válida.");
+  if (!normalized.title?.trim()) throw new Error("La actividad necesita un título.");
+  if (!ACTIVITY_TYPES.includes(normalized.type)) throw new Error("El tipo de actividad no es válido.");
+  if (normalized.startTime && !/^([01]\d|2[0-3]):[0-5]\d$/.test(normalized.startTime)) {
+    throw new Error("La hora inicial no es válida.");
+  }
+  return normalized;
+}
+
+export function createActivity(plan, state, values) {
+  const activity = validateActivity(plan, {
+    ...values,
+    id: values.id ?? cryptoSafeId("activity"),
+    completed: values.completed ?? false,
+    scheduledMinutes: values.scheduledMinutes ?? 0,
+  });
+  state.tasks.push(activity);
+  return activity;
+}
+
+export function updateActivity(plan, state, id, changes) {
+  const index = state.tasks.findIndex((activity) => activity.id === id);
+  if (index < 0) throw new Error("No se encontró la actividad.");
+  const updated = validateActivity(plan, { ...state.tasks[index], ...changes, id });
+  state.tasks[index] = updated;
+  return updated;
+}
+
+export function activitiesForWeek(state, weekStart, term = state.term) {
+  const end = dateForWeekDay(weekStart, 7);
+  return state.tasks.filter((activity) =>
+    activity.term === term && activity.date >= weekStart && activity.date <= end
+  );
+}
 
 export function timeToMinutes(value) {
   const [hours, minutes] = value.split(":").map(Number);
@@ -55,7 +137,8 @@ export function createInitialState(plan) {
 
 export function hydrateState(plan, saved) {
   const initial = createInitialState(plan);
-  if (!saved || saved.version !== STATE_VERSION) return initial;
+  if (!saved || typeof saved !== "object") return initial;
+  if (![2, STATE_VERSION].includes(saved.version)) return initial;
 
   const selections = { ...initial.selections };
   for (const course of plan.courses) {
@@ -67,12 +150,19 @@ export function hydrateState(plan, saved) {
     }
   }
 
-  return {
+  const hydrated = {
     ...initial,
     ...saved,
     selections,
     availability: { ...initial.availability, ...saved.availability },
+    version: STATE_VERSION,
   };
+  hydrated.tasks = Array.isArray(saved.tasks)
+    ? saved.tasks.map((task) => normalizeActivity(plan, task, saved.term ?? 1))
+    : [];
+  hydrated.studySessions = Array.isArray(saved.studySessions) ? saved.studySessions : [];
+  hydrated.suggestions = [];
+  return hydrated;
 }
 
 export function getCourseSessions(course, selection) {
@@ -218,7 +308,7 @@ function freeIntervalsForDay(day, availability, busy) {
 }
 
 export function scoreTask(task, now = new Date()) {
-  const due = new Date(task.dueAt);
+  const due = new Date(`${task.date ?? task.dueAt}T23:59:59`);
   const days = Math.max(0.25, (due - now) / 86_400_000);
   const urgency = 30 / days;
   const typeBoost = task.type === "exam" ? 8 : 0;
@@ -230,31 +320,41 @@ export function generateStudySuggestions(plan, state, options = {}) {
   const term = options.term ?? state.term;
   const maxSuggestions = options.maxSuggestions ?? 8;
   const duration = options.duration ?? 60;
+  const weekStart = options.weekStart ?? startOfWeek(now);
+  const weekEnd = dateForWeekDay(weekStart, 7);
   const accepted =
     options.preserveAccepted === false
       ? []
-      : state.studySessions.filter((session) => session.term === term);
+      : state.studySessions.filter(
+          (session) => session.term === term && (!session.date || startOfWeek(new Date(`${session.date}T12:00:00`)) === weekStart),
+        );
   const classes = getActiveSessions(plan, state, term);
   const busy = [...classes, ...accepted];
   const free = DAYS.flatMap(({ id }) =>
-    freeIntervalsForDay(id, state.availability[id], busy),
-  ).filter((interval) => interval.end - interval.start >= duration);
+    freeIntervalsForDay(id, state.availability[id], busy).map((interval) => ({
+      ...interval,
+      date: dateForWeekDay(weekStart, id),
+    })),
+  ).filter((interval) => interval.end - interval.start >= duration && interval.date <= weekEnd);
 
   const activeCourseIds = new Set(
     plan.courses
-      .filter((course) => state.selections[course.id]?.active)
+      .filter((course) => course.term === term && state.selections[course.id]?.active)
       .map(({ id }) => id),
   );
   const taskCandidates = state.tasks
     .filter(
       (task) =>
         !task.completed &&
+        Number(task.term ?? plan.courses.find(({ id }) => id === task.courseId)?.term) === term &&
         activeCourseIds.has(task.courseId) &&
-        new Date(task.dueAt) >= now,
+        new Date(`${task.date ?? task.dueAt}T23:59:59`) >= now &&
+        (task.date ?? task.dueAt) >= weekStart,
     )
     .map((task) => ({
       sourceType: "task",
       sourceId: task.id,
+      deadline: task.date ?? task.dueAt,
       courseId: task.courseId,
       title: task.title,
       remaining: Math.max(
@@ -295,6 +395,7 @@ export function generateStudySuggestions(plan, state, options = {}) {
       suggestions.length < maxSuggestions
     ) {
       const slot = free.shift();
+      if (candidate.deadline && slot.date > candidate.deadline) continue;
       const sessionDuration = Math.min(
         duration,
         candidate.remaining,
@@ -303,6 +404,7 @@ export function generateStudySuggestions(plan, state, options = {}) {
       suggestions.push({
         id: cryptoSafeId("suggestion"),
         day: slot.day,
+        date: slot.date,
         start: slot.start,
         end: slot.start + sessionDuration,
         courseId: candidate.courseId,
@@ -316,6 +418,7 @@ export function generateStudySuggestions(plan, state, options = {}) {
       if (slot.end - (slot.start + sessionDuration) >= duration) {
         free.push({
           day: slot.day,
+          date: slot.date,
           start: slot.start + sessionDuration,
           end: slot.end,
         });
@@ -338,7 +441,7 @@ export function validateImportedState(plan, value) {
   if (!value || typeof value !== "object") {
     throw new Error("El archivo no contiene un estado válido.");
   }
-  if (value.version !== STATE_VERSION) {
+  if (![2, STATE_VERSION].includes(value.version)) {
     throw new Error("La versión de la copia no es compatible.");
   }
   const hydrated = hydrateState(plan, value);
