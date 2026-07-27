@@ -4,6 +4,8 @@ import test from "node:test";
 
 import {
   canAwardElective,
+  activitiesForWeek,
+  createActivity,
   createInitialState,
   electiveCredits,
   evaluateCourseAlternatives,
@@ -14,6 +16,7 @@ import {
   getWeekDates,
   getActiveSessions,
   hydrateState,
+  updateActivity,
   canCreateAcademicSession,
   clampWeekToTerm,
   getAcademicTerm,
@@ -236,4 +239,54 @@ test("la hidratación añade nuevas asignaturas sin perder datos compatibles", (
   const hydrated = hydrateState(plan, saved);
   assert.equal(hydrated.topics.length, 1);
   assert.ok(hydrated.selections.fr);
+});
+
+test("crea y edita una actividad conservando fecha y duración", () => {
+  const state = createInitialState(plan);
+  const activity = createActivity(plan, state, {
+    type: "practice", term: 1, courseId: "ec", title: "Práctica 1",
+    date: "2026-09-16", startTime: "16:30", estimatedMinutes: 90,
+  });
+  updateActivity(plan, state, activity.id, { title: "Práctica revisada", completed: true });
+  assert.equal(state.tasks[0].date, "2026-09-16");
+  assert.equal(state.tasks[0].estimatedMinutes, 90);
+  assert.equal(state.tasks[0].completed, true);
+});
+
+test("rechaza una asignatura de otro cuatrimestre", () => {
+  const state = createInitialState(plan);
+  assert.throws(() => createActivity(plan, state, {
+    type: "homework", term: 1, courseId: "ise", title: "Entrega",
+    date: "2026-10-01", estimatedMinutes: 60,
+  }), /cuatrimestre/);
+});
+
+test("migra tareas v2 sin descartarlas y conserva el tipo task", () => {
+  const saved = createInitialState(plan);
+  saved.version = 2;
+  saved.tasks = [{ id: "legacy", type: "task", courseId: "ec", title: "Antigua", dueAt: "2026-09-20", estimatedMinutes: 45 }];
+  const migrated = hydrateState(plan, saved);
+  assert.equal(migrated.version, 3);
+  assert.equal(migrated.tasks[0].date, "2026-09-20");
+  assert.equal(migrated.tasks[0].type, "task");
+  assert.equal(migrated.tasks[0].term, 1);
+});
+
+test("filtra actividades por semana y cuatrimestre", () => {
+  const state = createInitialState(plan);
+  state.tasks = [
+    { id: "a", term: 1, date: "2026-09-14" },
+    { id: "b", term: 1, date: "2026-09-21" },
+    { id: "c", term: 2, date: "2026-09-16" },
+  ];
+  assert.deepEqual(activitiesForWeek(state, "2026-09-14", 1).map(({ id }) => id), ["a"]);
+});
+
+test("no sugiere sesiones posteriores a la entrega ni fuera de la semana", () => {
+  const state = createInitialState(plan);
+  state.availability = Object.fromEntries(Object.entries(state.availability).map(([day, value]) => [day, { ...value, start: "18:00", end: "20:00" }]));
+  state.tasks.push({ id: "deadline", type: "exam", term: 1, courseId: "ec", title: "Parcial", date: "2026-09-16", estimatedMinutes: 600, scheduledMinutes: 0, importance: 5, completed: false });
+  const suggestions = generateStudySuggestions(plan, state, { now: new Date("2026-09-14T08:00:00"), weekStart: "2026-09-14", maxSuggestions: 8 });
+  assert.ok(suggestions.length > 0);
+  assert.ok(suggestions.every(({ date }) => date >= "2026-09-14" && date <= "2026-09-16"));
 });

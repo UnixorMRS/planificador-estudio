@@ -276,6 +276,16 @@ body > footer, .app-shell > footer { display: flex; justify-content: space-betwe
   .month-calendar__header { align-items: stretch; flex-direction: column; }
   .month-calendar__controls { align-self: stretch; justify-content: space-between; }
 }
+.date-navigation { display:flex; align-items:center; justify-content:center; gap:1rem; margin:.75rem 0; }
+.month-block { margin-top:1.25rem; }
+.month-calendar { display:grid; grid-template-columns:repeat(7,1fr); gap:4px; }
+.month-day { min-height:52px; padding:.35rem; border:1px solid var(--border, #ddd); border-radius:8px; background:#fff; text-align:left; }
+.month-day.is-outside { opacity:.35; }
+.month-day strong { display:block; }
+.activity-dots { display:flex; gap:3px; margin-top:.3rem; }
+.activity-dot { width:7px; height:7px; border-radius:50%; background:#7057d9; }
+.calendar-event--activity { cursor:pointer; border-style:dashed; }
+.list-item.is-completed strong { text-decoration:line-through; opacity:.6; }
 .calendar-navigation {
   align-items: center;
   display: flex;
