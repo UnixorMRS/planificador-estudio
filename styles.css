@@ -261,3 +261,30 @@ body > footer, .app-shell > footer { display: flex; justify-content: space-betwe
 .activity-dot { width:7px; height:7px; border-radius:50%; background:#7057d9; }
 .calendar-event--activity { cursor:pointer; border-style:dashed; }
 .list-item.is-completed strong { text-decoration:line-through; opacity:.6; }
+
+/* Vista principal del curso: horario tradicional y todos sus meses. */
+.academic-overview { margin-bottom: 1.25rem; }
+.overview-heading { display:flex; align-items:end; justify-content:space-between; gap:2rem; margin-bottom:1rem; padding:1.25rem 0; }
+.overview-heading > p { max-width:620px; margin:0; color:var(--muted); }
+.term-overview { overflow:hidden; margin-bottom:1rem; border:1px solid var(--line); border-radius:var(--radius); background:var(--paper); box-shadow:var(--shadow); }
+.term-overview__heading { display:flex; align-items:center; justify-content:space-between; gap:1rem; padding:1.1rem 1.25rem; border-bottom:1px solid var(--line); }
+.term-overview__heading > div { display:flex; align-items:center; gap:.9rem; }
+.term-overview__heading h3 { margin:0; font-size:1.3rem; }
+.term-number { color:var(--soft-primary); font-size:2.8rem; font-weight:900; letter-spacing:-.08em; line-height:1; text-shadow:1px 0 var(--primary),-1px 0 var(--primary),0 1px var(--primary),0 -1px var(--primary); }
+.academic-calendar { min-width:880px; }
+.academic-calendar .time-axis,.academic-calendar .day-column { height:1134px; }
+.academic-calendar .day-column { background:repeating-linear-gradient(to bottom,transparent 0,transparent 83px,#edf0f5 83px,#edf0f5 84px); }
+.term-months { display:grid; grid-template-columns:repeat(auto-fit,minmax(230px,1fr)); gap:.8rem; padding:1rem; border-top:1px solid var(--line); background:#f8f9fc; }
+.month-card { min-width:0; padding:.8rem; border:1px solid var(--line); border-radius:12px; background:white; }
+.month-card h4 { margin:0 0 .65rem; text-transform:capitalize; }
+.month-weekday { color:var(--muted); font-size:.65rem; font-weight:800; text-align:center; }
+.month-count { display:grid; width:17px; height:17px; margin-top:.15rem; border-radius:50%; background:var(--primary); color:white; font-size:.6rem; place-items:center; }
+.month-day { position:relative; min-height:42px; padding:.3rem; border-color:var(--line); }
+.month-day.is-holiday { background:#fff3f4; color:var(--danger); }
+.options-copy { padding:1.25rem; }
+.options-copy p { max-width:750px; color:var(--muted); }
+@media (max-width:680px) {
+  .overview-heading,.term-overview__heading { align-items:stretch; flex-direction:column; }
+  .term-overview__heading .button { width:100%; }
+  .term-months { grid-template-columns:1fr; }
+}

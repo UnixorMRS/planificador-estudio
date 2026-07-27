@@ -28,7 +28,10 @@ const plan = await fetch("./data/planificacion.json").then((response) => {
 
 const elements = {
   courseList: document.querySelector("#course-list"),
-  calendar: document.querySelector("#calendar"),
+  calendars: {
+    1: document.querySelector("#calendar-term-1"),
+    2: document.querySelector("#calendar-term-2"),
+  },
   conflictSummary: document.querySelector("#conflict-summary"),
   notice: document.querySelector("#notice"),
   topicForm: document.querySelector("#topic-form"),
@@ -41,7 +44,10 @@ const elements = {
   settingsDialog: document.querySelector("#settings-dialog"),
   recalcDialog: document.querySelector("#recalc-dialog"),
   availabilityFields: document.querySelector("#availability-fields"),
-  monthCalendar: document.querySelector("#month-calendar"),
+  termMonths: {
+    1: document.querySelector("#months-term-1"),
+    2: document.querySelector("#months-term-2"),
+  },
 };
 
 let calendarView = "classes";
@@ -184,105 +190,101 @@ function renderCourses() {
     .join("");
 }
 
-function activeCalendarSessions() {
-  const classes = getActiveSessions(plan, state);
-  const studies =
-    calendarView === "all"
-      ? state.studySessions
-          .filter((session) => session.term === state.term)
-          .map((session) => ({
-            ...session,
-            abbreviation: courseById(session.courseId)?.abbreviation ?? "EST",
-            component: session.title,
-            color: "#2d8a5e",
-            kind: "study",
-          }))
-      : [];
-  const activities = activitiesForWeek(state, selectedWeek).map((activity) => {
-    const start = activity.startTime ? timeToMinutes(activity.startTime) : 1080;
-    return {
-      ...activity,
-      day: dateToDay(activity.date),
-      start,
-      end: start + activity.estimatedMinutes,
-      abbreviation: courseById(activity.courseId)?.abbreviation ?? "ACT",
-      component: activity.title,
-      color: activity.completed ? "#7a8594" : "#7057d9",
-      kind: "activity",
-    };
-  });
-  return [...classes, ...studies, ...activities];
+function sessionsForTerm(term) {
+  const classes = getActiveSessions(plan, state, term);
+  const studies = state.studySessions
+    .filter((session) => session.term === term)
+    .map((session) => ({
+      ...session,
+      abbreviation: courseById(session.courseId)?.abbreviation ?? "EST",
+      component: session.title,
+      color: "#2d8a5e",
+      kind: "study",
+    }));
+  return calendarView === "all" ? [...classes, ...studies] : classes;
 }
 
-function renderCalendar() {
-  const sessions = activeCalendarSessions();
-  const classSessions = getActiveSessions(plan, state);
-  const conflicts = findConflicts(classSessions, state.acceptedConflictIds);
+function renderTermCalendar(term) {
+  const calendar = elements.calendars[term];
+  const sessions = sessionsForTerm(term);
+  const classes = getActiveSessions(plan, state, term);
+  const conflicts = findConflicts(classes, state.acceptedConflictIds);
   const conflictSessionIds = new Set(
     conflicts.flatMap(({ first, second }) => [first.id, second.id]),
   );
-  const visibleDays = calendarView === "all" ? DAYS : DAYS.slice(0, 5);
   const start = 480;
   const end = 1290;
-  const pixelsPerMinute = 54 / 30;
+  const pixelsPerMinute = 42 / 30;
 
-  elements.calendar.classList.toggle("is-week", calendarView === "all");
-  elements.calendar.innerHTML = `
+  calendar.innerHTML = `
     <div class="calendar-header"></div>
-    ${visibleDays.map((day) => `<div class="calendar-header">${day.short}<small>${dateForWeekDay(selectedWeek, day.id).slice(8)}</small></div>`).join("")}
+    ${DAYS.slice(0, 5).map((day) => `<div class="calendar-header">${day.label}</div>`).join("")}
     <div class="time-axis">
       ${Array.from({ length: (end - start) / 60 + 1 }, (_, index) => {
         const minute = start + index * 60;
         return `<span style="top:${(minute - start) * pixelsPerMinute}px">${minutesToTime(minute)}</span>`;
       }).join("")}
     </div>
-    ${visibleDays
-      .map(
-        (day) => `<div class="day-column" data-day="${day.id}" data-date="${dateForWeekDay(selectedWeek, day.id)}" title="Pulsa para crear una actividad">
-          ${sessions
-            .filter((session) => session.day === day.id)
-            .map((session) => {
-              const top = (session.start - start) * pixelsPerMinute;
-              const height = Math.max(32, (session.end - session.start) * pixelsPerMinute - 4);
-              const conflictClass = conflictSessionIds.has(session.id)
-                ? "calendar-event--conflict"
-                : "";
-              return `<div class="calendar-event ${session.kind === "study" ? "calendar-event--study" : ""} ${session.kind === "activity" ? "calendar-event--activity" : ""} ${conflictClass}" ${session.kind === "activity" ? `data-edit-task="${session.id}"` : ""}
-                style="top:${top}px;height:${height}px;--event-color:${session.color}"
-                title="${escapeHtml(session.courseName ?? session.title)} · ${minutesToTime(session.start)}–${minutesToTime(session.end)}">
-                <strong>${escapeHtml(session.abbreviation)}</strong>
-                <span>${escapeHtml(session.component)}${session.room ? ` · ${escapeHtml(session.room)}` : ""}</span>
-              </div>`;
-            })
-            .join("")}
-        </div>`,
-      )
-      .join("")}`;
+    ${DAYS.slice(0, 5).map((day) => `<div class="day-column" data-day="${day.id}">
+      ${sessions.filter((session) => session.day === day.id).map((session) => {
+        const top = (session.start - start) * pixelsPerMinute;
+        const height = Math.max(32, (session.end - session.start) * pixelsPerMinute - 4);
+        return `<div class="calendar-event ${session.kind === "study" ? "calendar-event--study" : ""} ${conflictSessionIds.has(session.id) ? "calendar-event--conflict" : ""}"
+          style="top:${top}px;height:${height}px;--event-color:${session.color}"
+          title="${escapeHtml(session.courseName ?? session.title)} · ${minutesToTime(session.start)}–${minutesToTime(session.end)}">
+          <strong>${escapeHtml(session.abbreviation)}</strong>
+          <span>${minutesToTime(session.start)}–${minutesToTime(session.end)} · ${escapeHtml(session.component)}${session.room ? ` · ${escapeHtml(session.room)}` : ""}</span>
+        </div>`;
+      }).join("")}
+    </div>`).join("")}`;
 
   if (!sessions.length) {
-    elements.calendar.insertAdjacentHTML(
-      "beforeend",
-      '<p class="calendar-empty">No hay sesiones activas para este cuatrimestre.</p>',
-    );
+    calendar.insertAdjacentHTML("beforeend", '<p class="calendar-empty">Selecciona una asignatura o un grupo para mostrar sus clases.</p>');
   }
-  renderConflicts(conflicts);
-  document.querySelector("#week-label").textContent = `${selectedWeek.split("-").reverse().join("/")} – ${dateForWeekDay(selectedWeek, 7).split("-").reverse().join("/")}`;
-  renderMonth();
+  return conflicts;
 }
 
-function renderMonth() {
-  const focus = new Date(`${selectedWeek}T12:00:00`);
-  const year = focus.getFullYear();
-  const month = focus.getMonth();
-  document.querySelector("#month-label").textContent = new Intl.DateTimeFormat("es-ES", { month: "long", year: "numeric" }).format(focus);
+function monthDates(year, month) {
   const first = new Date(year, month, 1, 12);
-  first.setDate(first.getDate() - ((first.getDay() || 7) - 1));
-  elements.monthCalendar.innerHTML = Array.from({ length: 42 }, (_, index) => {
-    const date = new Date(first); date.setDate(first.getDate() + index);
-    const iso = date.toISOString().slice(0, 10);
-    const items = state.tasks.filter((item) => item.term === state.term && item.date === iso);
-    return `<button type="button" class="month-day ${date.getMonth() !== month ? "is-outside" : ""}" data-activity-date="${iso}"><strong>${date.getDate()}</strong><span class="activity-dots">${items.slice(0, 4).map(() => '<i class="activity-dot"></i>').join("")}</span></button>`;
+  const gridStart = new Date(first);
+  gridStart.setDate(first.getDate() - ((first.getDay() || 7) - 1));
+  return Array.from({ length: 42 }, (_, index) => {
+    const date = new Date(gridStart);
+    date.setDate(gridStart.getDate() + index);
+    return date;
+  });
+}
+
+function renderTermMonths(term) {
+  const academicTerm = plan.academicTerms.find(({ id }) => id === term);
+  const start = new Date(`${academicTerm.classStart}T12:00:00`);
+  const end = new Date(`${academicTerm.classEnd}T12:00:00`);
+  const months = [];
+  for (let cursor = new Date(start.getFullYear(), start.getMonth(), 1, 12); cursor <= end; cursor.setMonth(cursor.getMonth() + 1)) {
+    months.push([cursor.getFullYear(), cursor.getMonth()]);
+  }
+  const dayHeaders = DAYS.map(({ short }) => `<span class="month-weekday">${short.slice(0, 1)}</span>`).join("");
+  elements.termMonths[term].innerHTML = months.map(([year, month]) => {
+    const title = new Intl.DateTimeFormat("es-ES", { month: "long", year: "numeric" }).format(new Date(year, month, 1));
+    const days = monthDates(year, month).map((date) => {
+      const iso = date.toISOString().slice(0, 10);
+      const items = state.tasks.filter((item) => item.term === term && item.date === iso);
+      const noClass = academicTerm.nonTeachingPeriods.some((period) => iso >= period.start && iso <= period.end);
+      return `<button type="button" class="month-day ${date.getMonth() !== month ? "is-outside" : ""} ${noClass ? "is-holiday" : ""}" data-activity-date="${iso}" data-activity-term="${term}" title="${noClass ? "Periodo no lectivo" : "Añadir actividad"}">
+        <strong>${date.getDate()}</strong>${items.length ? `<span class="month-count">${items.length}</span>` : ""}
+      </button>`;
+    }).join("");
+    return `<section class="month-card"><h4>${title}</h4><div class="month-calendar">${dayHeaders}${days}</div></section>`;
   }).join("");
+}
+
+function renderCalendar() {
+  const conflicts = [...renderTermCalendar(1), ...renderTermCalendar(2)];
+  renderTermMonths(1);
+  renderTermMonths(2);
+  renderConflicts(conflicts.filter((conflict) =>
+    conflict.first.courseId && courseById(conflict.first.courseId)?.term === state.term
+  ));
 }
 
 function renderConflicts(conflicts) {
@@ -473,8 +475,6 @@ function render() {
   document.querySelectorAll("[data-term]").forEach((button) => {
     button.classList.toggle("is-active", Number(button.dataset.term) === state.term);
   });
-  document.querySelector("#calendar-title").textContent =
-    `Horario · ${state.term}.º cuatrimestre`;
   renderCourses();
   renderCalendar();
   renderForms();
@@ -494,17 +494,25 @@ document.addEventListener("click", (event) => {
 
   const activityDate = event.target.closest("[data-activity-date]");
   if (activityDate) {
+    if (activityDate.dataset.activityTerm && state.term !== Number(activityDate.dataset.activityTerm)) {
+      update(() => { state.term = Number(activityDate.dataset.activityTerm); });
+    }
     prepareTaskForm(activityDate.dataset.activityDate);
     return;
   }
 
-  const dayColumn = event.target.closest(".day-column");
-  if (dayColumn && event.target === dayColumn) {
-    const rect = dayColumn.getBoundingClientRect();
-    const minute = Math.max(480, Math.min(1260, 480 + Math.round((event.clientY - rect.top) / (54 / 30) / 15) * 15));
-    prepareTaskForm(dayColumn.dataset.date, minutesToTime(minute));
+  const manageTerm = event.target.closest("[data-manage-term]");
+  if (manageTerm) {
+    update(() => { state.term = Number(manageTerm.dataset.manageTerm); });
+    document.querySelector("#planning-options").scrollIntoView({ behavior: "smooth" });
     return;
   }
+  const jumpTarget = event.target.closest("[data-jump-to]");
+  if (jumpTarget) {
+    document.querySelector(`#${jumpTarget.dataset.jumpTo}`)?.scrollIntoView({ behavior: "smooth", block: "center" });
+    return;
+  }
+
   const termButton = event.target.closest("[data-term]");
   if (termButton) {
     update(() => {
@@ -662,15 +670,6 @@ function beginTaskEdit(id) {
 }
 
 elements.taskForm.querySelector("[data-cancel-task-edit]").addEventListener("click", () => prepareTaskForm(""));
-document.querySelector("#previous-week").addEventListener("click", () => {
-  selectedWeek = dateForWeekDay(selectedWeek, -6);
-  renderCalendar();
-});
-document.querySelector("#next-week").addEventListener("click", () => {
-  selectedWeek = dateForWeekDay(selectedWeek, 8);
-  renderCalendar();
-});
-
 elements.courseList.addEventListener("change", (event) => {
   const activeId = event.target.dataset.courseActive;
   if (activeId) {
