@@ -16,6 +16,7 @@ import {
   sortActivitiesByStartTime,
   updateActivity,
   validateImportedState,
+  topicProgress,
 } from "../planner-core.js";
 
 const plan = JSON.parse(
@@ -160,6 +161,9 @@ test("la hidratación añade nuevas asignaturas sin perder datos compatibles", (
   delete saved.selections.fr;
   const hydrated = hydrateState(plan, saved);
   assert.equal(hydrated.topics.length, 1);
+  assert.equal(hydrated.topics[0].component, "theory");
+  assert.equal(hydrated.topics[0].difficulty, 3);
+  assert.equal(hydrated.topics[0].mastery, 0);
   assert.ok(hydrated.selections.fr);
 });
 
@@ -246,4 +250,10 @@ test("no sugiere sesiones posteriores a la entrega ni fuera de la semana", () =>
   const suggestions = generateStudySuggestions(plan, state, { now: new Date("2026-09-14T08:00:00"), weekStart: "2026-09-14", maxSuggestions: 8 });
   assert.ok(suggestions.length > 0);
   assert.ok(suggestions.every(({ date }) => date >= "2026-09-14" && date <= "2026-09-16"));
+});
+
+
+test("calcula el progreso medio de los temas y contempla listas vacías", () => {
+  assert.equal(topicProgress([]), 0);
+  assert.equal(topicProgress([{ mastery: 4 }, { mastery: 2 }, { mastery: 0 }]), 50);
 });

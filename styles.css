@@ -96,6 +96,31 @@ h2 { margin-bottom: 0; font-size: 1.25rem; letter-spacing: -0.02em; }
   margin-bottom: 1rem; padding: 0.85rem 1rem; border: 1px solid #f0d9b7;
   border-radius: 12px; background: #fff9ed; color: #805219; font-size: 0.9rem;
 }
+.official-links { margin-bottom: 1rem; }
+.official-link-list { display: flex; flex-wrap: wrap; gap: .65rem; padding: 1rem 1.25rem; }
+.official-link-list a { color: var(--primary-dark); font-weight: 750; }
+.topic-glossaries { margin-bottom: 1rem; }
+.glossary-heading { display: flex; justify-content: space-between; align-items: end; gap: 1rem; margin-bottom: .75rem; }
+.glossary-heading > p { margin: 0; color: var(--muted); font-size: .8rem; }
+.glossary-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(290px, 1fr)); gap: .85rem; }
+.glossary-card { overflow: hidden; padding: 1rem; border: 1px solid var(--line); border-top: 5px solid var(--course-color); border-radius: 14px; background: var(--paper); box-shadow: var(--shadow); }
+.glossary-card header { display: flex; align-items: center; gap: .6rem; }
+.glossary-card header div { min-width: 0; flex: 1; }
+.glossary-card header strong, .glossary-card header small { display: block; }
+.glossary-card header small { color: var(--muted); }
+.course-color-marker { width: 14px; height: 14px; border: 2px solid var(--ink); border-radius: 50%; background: var(--course-color); }
+.progress-label { display: flex; justify-content: space-between; margin-top: .8rem; color: var(--muted); font-size: .72rem; font-weight: 700; }
+.progress-track { height: 10px; overflow: hidden; margin: .3rem 0 .9rem; border: 1px solid #9ba3b4; border-radius: 999px; background: repeating-linear-gradient(135deg, #eef0f4 0 5px, #fff 5px 10px); }
+.progress-track span { display: block; height: 100%; background: var(--course-color); border-right: 2px solid var(--ink); }
+.glossary-components { display: grid; grid-template-columns: 1fr 1fr; gap: .75rem; }
+.glossary-component { padding: .7rem; border: 1px solid var(--line); border-radius: 10px; }
+.glossary-component h4 { display: flex; justify-content: space-between; margin: 0 0 .4rem; font-size: .82rem; }
+.glossary-component h4 span { padding: 0 .4rem; border: 1px solid currentColor; border-radius: 999px; }
+.glossary-component ul { margin: 0; padding: 0; list-style: none; }
+.glossary-component li { padding: .4rem 0; border-top: 1px solid var(--line); font-size: .76rem; }
+.mastery-status { display: block; color: var(--muted); font-size: .68rem; font-weight: 700; }
+.glossary-empty { margin: 0; color: var(--muted); font-size: .75rem; font-style: italic; }
+.workspace { display: grid; grid-template-columns: minmax(280px, 340px) minmax(0, 1fr); gap: 1rem; align-items: start; }
 .workspace {
   display: grid;
   grid-template-columns:

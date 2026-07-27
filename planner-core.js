@@ -11,6 +11,27 @@ export const DAYS = [
 export const STORAGE_KEY = "planificador-estudio:v2";
 export const STATE_VERSION = 3;
 export const ACTIVITY_TYPES = ["task", "homework", "practice", "exam"];
+export const TOPIC_COMPONENTS = ["theory", "practice"];
+
+export function normalizeTopic(topic) {
+  const difficulty = Number(topic?.difficulty ?? 3);
+  const mastery = Number(topic?.mastery ?? 0);
+  return {
+    ...topic,
+    courseId: topic?.courseId ?? "",
+    name: topic?.name ?? "",
+    difficulty: Number.isFinite(difficulty) ? Math.min(5, Math.max(1, difficulty)) : 3,
+    mastery: Number.isFinite(mastery) ? Math.min(4, Math.max(0, Math.round(mastery))) : 0,
+    component: TOPIC_COMPONENTS.includes(topic?.component) ? topic.component : "theory",
+  };
+}
+
+/** Porcentaje medio de dominio (0–4); un grupo vacío comienza en 0 %. */
+export function topicProgress(topics) {
+  if (!Array.isArray(topics) || topics.length === 0) return 0;
+  const total = topics.reduce((sum, topic) => sum + normalizeTopic(topic).mastery, 0);
+  return Math.round((total / (topics.length * 4)) * 100);
+}
 
 function validDate(value) {
   return /^\d{4}-\d{2}-\d{2}$/.test(value ?? "") && !Number.isNaN(Date.parse(`${value}T12:00:00`));
@@ -177,6 +198,7 @@ export function hydrateState(plan, saved) {
   hydrated.tasks = Array.isArray(saved.tasks)
     ? saved.tasks.map((task) => normalizeActivity(plan, task, saved.term ?? 1))
     : [];
+  hydrated.topics = Array.isArray(saved.topics) ? saved.topics.map(normalizeTopic) : [];
   hydrated.studySessions = Array.isArray(saved.studySessions) ? saved.studySessions : [];
   hydrated.suggestions = [];
   return hydrated;

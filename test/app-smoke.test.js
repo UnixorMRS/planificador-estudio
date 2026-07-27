@@ -44,6 +44,8 @@ test("enlaza los selectores de cuatrimestre y los días mensuales", async () => 
   assert.match(source, /openCalendarActivityForm\(activityDate\)/);
 });
 
+
+test("el glosario separa teoría y prácticas y conserva el color de asignatura", async () => {
 test("todas las asignaturas ofrecen una guía HTTPS oficial de la UGR", async () => {
   const data = JSON.parse(
     await readFile(new URL("../data/planificacion.json", import.meta.url), "utf8"),
@@ -66,6 +68,13 @@ test("renderiza las guías en un contenedor accesible con enlaces externos segur
     readFile(new URL("../index.html", import.meta.url), "utf8"),
     readFile(new URL("../app.js", import.meta.url), "utf8"),
   ]);
+  assert.match(html, /id="topic-glossary-list"/);
+  assert.match(html, /name="component"/);
+  assert.match(source, /data-topic-component="\$\{kind\}"/);
+  assert.match(source, /component\("theory", "Teoría"\)/);
+  assert.match(source, /component\("practice", "Prácticas"\)/);
+  assert.match(source, /--course-color: \$\{escapeHtml\(course.color\)\}/);
+  assert.match(source, /data-course-color="\$\{escapeHtml\(course.color\)\}"/);
 
   assert.match(html, /<h2 id="guide-section-title">Guías docentes y temarios<\/h2>/);
   assert.match(html, /<div id="guide-list" class="guide-list"><\/div>/);
