@@ -176,6 +176,7 @@ export function createInitialState(plan) {
     topics: [],
     tasks: [],
     studySessions: [],
+    timeHistory: [],
     timeEntries: [],
     suggestions: [],
     availability: Object.fromEntries(
@@ -186,6 +187,94 @@ export function createInitialState(plan) {
     ),
     needsRegeneration: false,
   };
+}
+
+export function toIsoDate(date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+export function getWeekRange(value = new Date()) {
+  const date = typeof value === "string" ? new Date(`${value}T12:00:00`) : new Date(value);
+  if (Number.isNaN(date.getTime())) throw new Error("La fecha de la semana no es válida.");
+  const monday = new Date(date);
+  monday.setHours(12, 0, 0, 0);
+  monday.setDate(monday.getDate() - ((monday.getDay() + 6) % 7));
+  const sunday = new Date(monday);
+  sunday.setDate(sunday.getDate() + 6);
+  return { start: toIsoDate(monday), end: toIsoDate(sunday) };
+}
+
+export function dateForWeekDay(weekStart, day) {
+  const monday = new Date(`${getWeekRange(weekStart).start}T12:00:00`);
+  monday.setDate(monday.getDate() + Number(day) - 1);
+  return toIsoDate(monday);
+}
+
+/** Pure time aggregation used by every time summary in the UI. */
+export function aggregateStudyTime(plan, state, { term = state.term, weekStart } = {}) {
+  const week = getWeekRange(weekStart ?? new Date());
+  const courses = plan.courses.filter((course) => course.term === term);
+  const rows = courses.map((course) => {
+    const tasks = state.tasks.filter((task) => task.courseId === course.id);
+    const sessions = state.studySessions.filter(
+      (session) => session.term === term && session.courseId === course.id,
+    );
+    const history = (state.timeHistory ?? []).filter(
+      (entry) => entry.term === term && entry.courseId === course.id,
+    );
+    const inWeek = (date) => date >= week.start && date <= week.end;
+    const planned = (items) => items.reduce(
+      (total, session) => total + Number(session.durationMinutes ?? session.end - session.start), 0,
+    );
+    const estimated = (items) => items.reduce(
+      (total, task) => total + Number(task.estimatedMinutes ?? 0), 0,
+    );
+    const actual = (items) => items.reduce(
+      (total, entry) => total + Number(entry.durationMinutes ?? 0), 0,
+    );
+    return {
+      courseId: course.id,
+      courseName: course.name,
+      abbreviation: course.abbreviation,
+      week: {
+        planned: planned(sessions.filter((session) => {
+          const date = session.date ?? (session.weekStart
+            ? dateForWeekDay(session.weekStart, session.day)
+            : "");
+          return date && inWeek(date);
+        })),
+        estimated: estimated(tasks.filter((task) => inWeek(task.dueAt))),
+        actual: actual(history.filter((entry) => inWeek(entry.date))),
+      },
+      term: {
+        planned: planned(sessions),
+        estimated: estimated(tasks),
+        actual: actual(history),
+      },
+    };
+  });
+  const sum = (scope, kind) => rows.reduce((total, row) => total + row[scope][kind], 0);
+  return {
+    week,
+    rows,
+    totals: Object.fromEntries(["week", "term"].map((scope) => [scope, {
+      planned: sum(scope, "planned"),
+      estimated: sum(scope, "estimated"),
+      actual: sum(scope, "actual"),
+    }])),
+  };
+}
+
+export function filterTimeHistory(entries, filters = {}) {
+  return [...(entries ?? [])]
+    .filter((entry) => !filters.term || entry.term === Number(filters.term))
+    .filter((entry) => !filters.courseId || entry.courseId === filters.courseId)
+    .filter((entry) => !filters.from || entry.date >= filters.from)
+    .filter((entry) => !filters.to || entry.date <= filters.to)
+    .sort((a, b) => b.date.localeCompare(a.date) || String(b.id).localeCompare(String(a.id)));
 }
 
 export function hydrateState(plan, saved) {
@@ -566,6 +655,7 @@ export function generateStudySuggestions(plan, state, options = {}) {
       );
       suggestions.push({
         id: cryptoSafeId("suggestion"),
+        term,
         day: slot.day,
         date: slot.date,
         date: weekStart ? addCalendarDays(weekStart, slot.day - 1) : undefined,

@@ -3,6 +3,7 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 import {
+  aggregateStudyTime,
   aggregateTimeByCourse,
   aggregateTimeByDateRange,
   aggregateTimeByIsoWeek,
@@ -16,6 +17,7 @@ import {
   electiveCredits,
   evaluateCourseAlternatives,
   findConflicts,
+  filterTimeHistory,
   generateStudySuggestions,
   getCalendarWeeks,
   getMonthBounds,
@@ -248,6 +250,25 @@ test("la hidratación añade nuevas asignaturas sin perder datos compatibles", (
   assert.ok(hydrated.selections.fr);
 });
 
+test("el resumen semanal usa las fechas de la semana seleccionada", () => {
+  const state = createInitialState(plan);
+  state.tasks.push({ courseId: "ec", dueAt: "2026-10-08", estimatedMinutes: 90 });
+  state.studySessions.push({ term: 1, courseId: "ec", day: 4, start: 600, end: 660, date: "2026-10-08" });
+  state.timeHistory.push({ id: "h1", term: 1, courseId: "ec", date: "2026-10-08", durationMinutes: 45 });
+  const selected = aggregateStudyTime(plan, state, { term: 1, weekStart: "2026-10-05" });
+  const other = aggregateStudyTime(plan, state, { term: 1, weekStart: "2026-10-12" });
+  assert.deepEqual(selected.totals.week, { planned: 60, estimated: 90, actual: 45 });
+  assert.deepEqual(other.totals.week, { planned: 0, estimated: 0, actual: 0 });
+  assert.deepEqual(other.totals.term, { planned: 60, estimated: 90, actual: 45 });
+});
+
+test("el historial se filtra sin eliminar registros de otros cuatrimestres", () => {
+  const entries = [
+    { id: "a", term: 1, courseId: "ec", date: "2026-10-08" },
+    { id: "b", term: 2, courseId: "fr", date: "2027-03-02" },
+  ];
+  assert.deepEqual(filterTimeHistory(entries, { term: 2 }).map(({ id }) => id), ["b"]);
+  assert.equal(entries.length, 2);
 test("migra explícitamente el estado v2 sin contabilizar sesiones planificadas", () => {
   const old = createInitialState(plan);
   old.version = 2;
