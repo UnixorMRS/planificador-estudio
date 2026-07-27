@@ -106,8 +106,8 @@
 
       <div id="notice" class="notice" role="status" hidden></div>
 
-      <section class="workspace" id="planning-options">
-        <aside class="sidebar">
+      <section class="workspace" id="planning-options" aria-label="Herramientas de planificación">
+        <aside class="sidebar workspace-panel--courses">
           <div class="section-heading">
             <div>
               <p class="section-label">Matrícula y grupos</p>
@@ -118,7 +118,7 @@
           <div id="course-list" class="course-list"></div>
         </aside>
 
-        <section class="calendar-panel options-intro">
+        <section class="calendar-panel options-intro workspace-panel--options">
           <div class="section-heading"><div><p class="section-label">Personaliza tu plan</p><h2>Opciones del cuatrimestre</h2></div></div>
           <div id="conflict-summary"></div>
           <div class="options-copy">
@@ -126,10 +126,8 @@
             <button class="button" type="button" data-jump-to="task-form">Añadir una tarea o examen</button>
           </div>
         </section>
-      </section>
 
-      <section class="lower-grid">
-        <article class="panel">
+        <article class="panel workspace-panel--topics">
           <div class="section-heading">
             <div>
               <p class="section-label">Comprensión real</p>
@@ -149,7 +147,7 @@
           <div id="topic-list" class="item-list empty-copy">Aún no hay temas.</div>
         </article>
 
-        <article class="panel">
+        <article class="panel workspace-panel--tasks">
           <div class="section-heading">
             <div>
               <p class="section-label">Fechas y carga</p>
@@ -170,23 +168,23 @@
           </form>
           <div id="task-list" class="item-list empty-copy">Aún no hay tareas ni exámenes.</div>
         </article>
-      </section>
 
-      <section class="panel study-panel">
-        <div class="section-heading">
-          <div>
-            <p class="section-label">Sugerencias explicables</p>
-            <h2>Horario de estudio</h2>
+        <article class="panel workspace-panel--study">
+          <div class="section-heading">
+            <div>
+              <p class="section-label">Sugerencias explicables</p>
+              <h2>Horario de estudio</h2>
+            </div>
+            <button id="generate-button" class="button" type="button">Generar semana</button>
           </div>
-          <button id="generate-button" class="button" type="button">Generar semana</button>
-        </div>
-        <div id="regeneration-banner" class="regeneration-banner" hidden>
-          Tus datos han cambiado. Conviene recalcular las sugerencias.
-          <button id="recalculate-button" type="button">Recalcular</button>
-        </div>
-        <div id="suggestion-list" class="suggestion-grid empty-copy">
-          Añade temas o tareas para generar bloques de estudio.
-        </div>
+          <div id="regeneration-banner" class="regeneration-banner" hidden>
+            Tus datos han cambiado. Conviene recalcular las sugerencias.
+            <button id="recalculate-button" type="button">Recalcular</button>
+          </div>
+          <div id="suggestion-list" class="suggestion-grid empty-copy">
+            Añade temas o tareas para generar bloques de estudio.
+          </div>
+        </article>
       </section>
     </main>
 
