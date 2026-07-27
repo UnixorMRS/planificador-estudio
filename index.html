@@ -52,24 +52,37 @@
             <p class="section-label">Horario del curso completo</p>
             <h2 id="academic-overview-title">Clases y calendario académico</h2>
           </div>
-          <p>Los dos cuatrimestres están siempre visibles. Selecciona los grupos más abajo y el horario se actualizará al instante.</p>
+          <p>Se muestra únicamente el cuatrimestre seleccionado. Selecciona los grupos más abajo y el horario se actualizará al instante.</p>
         </div>
         <article class="term-overview" data-term-overview="1">
           <div class="term-overview__heading">
-            <div><span class="term-number">01</span><div><p class="section-label">Septiembre — diciembre</p><h3>Primer cuatrimestre</h3></div></div>
+            <div><span class="term-number">01</span><div><p class="section-label">Septiembre — febrero</p><h3>Primer cuatrimestre</h3></div></div>
             <button class="button button--ghost" type="button" data-manage-term="1">Gestionar asignaturas</button>
           </div>
           <div class="calendar-scroll"><div id="calendar-term-1" class="calendar academic-calendar" aria-label="Horario semanal del primer cuatrimestre"></div></div>
           <div id="months-term-1" class="term-months" aria-label="Meses del primer cuatrimestre"></div>
         </article>
-        <article class="term-overview" data-term-overview="2">
+        <article class="term-overview" data-term-overview="2" hidden>
           <div class="term-overview__heading">
-            <div><span class="term-number">02</span><div><p class="section-label">Febrero — junio</p><h3>Segundo cuatrimestre</h3></div></div>
+            <div><span class="term-number">02</span><div><p class="section-label">Febrero — julio</p><h3>Segundo cuatrimestre</h3></div></div>
             <button class="button button--ghost" type="button" data-manage-term="2">Gestionar asignaturas</button>
           </div>
           <div class="calendar-scroll"><div id="calendar-term-2" class="calendar academic-calendar" aria-label="Horario semanal del segundo cuatrimestre"></div></div>
           <div id="months-term-2" class="term-months" aria-label="Meses del segundo cuatrimestre"></div>
         </article>
+        <form id="calendar-activity-form" class="calendar-activity-panel" hidden>
+          <input name="term" type="hidden" />
+          <p class="section-label">Nueva actividad</p>
+          <label>Fecha seleccionada<input name="date" type="date" readonly required /></label>
+          <label>Asignatura<select name="courseId" required></select></label>
+          <label class="field-grow">Título<input name="title" required /></label>
+          <label>Hora inicial<input name="startTime" type="time" required /></label>
+          <label>Duración (min)<input name="estimatedMinutes" type="number" min="1" step="15" value="60" required /></label>
+          <div class="calendar-activity-actions">
+            <button class="button" type="submit">Guardar</button>
+            <button class="button button--ghost" type="button" data-cancel-calendar-activity>Cancelar</button>
+          </div>
+        </form>
       </section>
 
       <section class="metrics" aria-label="Resumen del plan">
