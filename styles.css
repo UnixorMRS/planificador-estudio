@@ -251,3 +251,20 @@ body > footer, .app-shell > footer { display: flex; justify-content: space-betwe
   .availability-row { grid-template-columns: 28px 1fr 1fr; }
   .availability-row label { grid-column: 1 / -1; }
 }
+.calendar-navigation {
+  align-items: center;
+  display: flex;
+  gap: 0.75rem;
+  justify-content: center;
+  margin: 0.75rem 0 0.25rem;
+}
+
+.calendar-navigation label { font-size: 0.85rem; font-weight: 700; }
+.calendar-navigation input { margin-left: 0.35rem; }
+.term-dates { margin: 0 0 0.75rem; text-align: center; }
+.calendar-header small { display: block; font-weight: 500; text-transform: lowercase; }
+.calendar-header span { display: block; font-size: 0.62rem; line-height: 1.1; }
+.calendar-header.is-non-teaching, .day-column.is-non-teaching {
+  background: repeating-linear-gradient(135deg, #fff4db, #fff4db 8px, #fae9c4 8px, #fae9c4 16px);
+}
+.calendar-header.is-outside-term, .day-column.is-outside-term { background: #f1f2f5; color: #7b8190; }

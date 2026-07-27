@@ -11,6 +11,127 @@ export const DAYS = [
 export const STORAGE_KEY = "planificador-estudio:v2";
 export const STATE_VERSION = 2;
 
+const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
+
+export function parseISODate(value) {
+  if (typeof value !== "string" || !ISO_DATE.test(value)) return null;
+  const date = new Date(`${value}T00:00:00Z`);
+  return Number.isNaN(date.valueOf()) || date.toISOString().slice(0, 10) !== value
+    ? null
+    : date;
+}
+
+export function formatISODate(date) {
+  return date.toISOString().slice(0, 10);
+}
+
+export function startOfISOWeek(value) {
+  const date = typeof value === "string" ? parseISODate(value) : new Date(value);
+  if (!date || Number.isNaN(date.valueOf())) return null;
+  const result = new Date(
+    Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()),
+  );
+  result.setUTCDate(result.getUTCDate() - ((result.getUTCDay() + 6) % 7));
+  return formatISODate(result);
+}
+
+export function validatePlan(plan) {
+  if (!Array.isArray(plan?.academicTerms) || plan.academicTerms.length !== 2) {
+    throw new Error("El plan debe definir exactamente dos cuatrimestres.");
+  }
+  const ids = new Set();
+  let previous = null;
+  for (const term of plan.academicTerms) {
+    if (ids.has(term.id)) {
+      throw new Error("Los cuatrimestres deben tener identificadores únicos.");
+    }
+    ids.add(term.id);
+    const start = parseISODate(term.classStart);
+    const end = parseISODate(term.classEnd);
+    if (!start || !end) {
+      throw new Error(
+        `El cuatrimestre ${term.id} contiene fechas ISO no válidas.`,
+      );
+    }
+    if (start >= end) {
+      throw new Error(
+        `El inicio del cuatrimestre ${term.id} debe preceder al final.`,
+      );
+    }
+    if (previous && previous >= start) {
+      throw new Error(
+        "Los cuatrimestres deben ser cronológicos y no solaparse.",
+      );
+    }
+    previous = end;
+    let previousPeriodEnd = null;
+    for (const period of term.nonTeachingPeriods ?? []) {
+      const periodStart = parseISODate(period.start);
+      const periodEnd = parseISODate(period.end);
+      if (!periodStart || !periodEnd || periodStart > periodEnd) {
+        throw new Error(`El cuatrimestre ${term.id} contiene un periodo no lectivo no válido.`);
+      }
+      if (periodStart < start || periodEnd > end) {
+        throw new Error(`El periodo no lectivo de ${term.id} queda fuera de su docencia.`);
+      }
+      if (previousPeriodEnd && previousPeriodEnd >= periodStart) {
+        throw new Error(`Los periodos no lectivos de ${term.id} deben ser cronológicos y no solaparse.`);
+      }
+      previousPeriodEnd = periodEnd;
+    }
+  }
+  return plan;
+}
+
+export function getAcademicTerm(plan, termId) {
+  return plan.academicTerms.find(({ id }) => String(id) === String(termId));
+}
+
+export function isDateInTerm(term, value) {
+  return Boolean(
+    parseISODate(value) && value >= term.classStart && value <= term.classEnd,
+  );
+}
+
+export function nonTeachingPeriodForDate(term, value) {
+  return (term.nonTeachingPeriods ?? []).find(
+    ({ start, end }) => value >= start && value <= end,
+  );
+}
+
+export function firstWeekOfTerm(term) {
+  return startOfISOWeek(term.classStart);
+}
+
+export function clampWeekToTerm(term, weekStart) {
+  const first = firstWeekOfTerm(term);
+  const last = startOfISOWeek(term.classEnd);
+  const candidate = startOfISOWeek(weekStart);
+  if (!candidate || candidate < first) return first;
+  if (candidate > last) return last;
+  return candidate;
+}
+
+export function weekDatesForTerm(term, weekStart) {
+  const monday = parseISODate(clampWeekToTerm(term, weekStart));
+  return Array.from({ length: 7 }, (_, offset) => {
+    const date = new Date(monday);
+    date.setUTCDate(date.getUTCDate() + offset);
+    const iso = formatISODate(date);
+    return {
+      date: iso,
+      inTerm: isDateInTerm(term, iso),
+      nonTeachingPeriod: nonTeachingPeriodForDate(term, iso) ?? null,
+    };
+  });
+}
+
+export function canCreateAcademicSession(plan, termId, date, confirmed = false) {
+  const term = getAcademicTerm(plan, termId);
+  if (!term || !parseISODate(date)) return false;
+  return isDateInTerm(term, date) || confirmed;
+}
+
 export function timeToMinutes(value) {
   const [hours, minutes] = value.split(":").map(Number);
   return hours * 60 + minutes;
@@ -23,6 +144,7 @@ export function minutesToTime(value) {
 }
 
 export function createInitialState(plan) {
+  validatePlan(plan);
   const selections = Object.fromEntries(
     plan.courses.map((course) => [
       course.id,
@@ -37,6 +159,9 @@ export function createInitialState(plan) {
   return {
     version: STATE_VERSION,
     term: 1,
+    calendarWeeks: Object.fromEntries(
+      plan.academicTerms.map((term) => [term.id, firstWeekOfTerm(term)]),
+    ),
     selections,
     acceptedConflictIds: ["af-friday::ec-b2-practice"],
     topics: [],
@@ -72,6 +197,15 @@ export function hydrateState(plan, saved) {
     ...saved,
     selections,
     availability: { ...initial.availability, ...saved.availability },
+    calendarWeeks: Object.fromEntries(
+      plan.academicTerms.map((term) => [
+        term.id,
+        clampWeekToTerm(
+          term,
+          saved.calendarWeeks?.[term.id] ?? firstWeekOfTerm(term),
+        ),
+      ]),
+    ),
   };
 }
 

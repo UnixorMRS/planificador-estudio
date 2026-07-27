@@ -10,15 +10,23 @@ import {
   generateStudySuggestions,
   getActiveSessions,
   hydrateState,
+  clampWeekToTerm,
+  firstWeekOfTerm,
+  formatISODate,
+  getAcademicTerm,
   minutesToTime,
+  parseISODate,
   timeToMinutes,
   validateImportedState,
+  validatePlan,
+  weekDatesForTerm,
 } from "./planner-core.js";
 
 const plan = await fetch("./data/planificacion.json").then((response) => {
   if (!response.ok) throw new Error("No se pudo cargar la planificación.");
   return response.json();
 });
+validatePlan(plan);
 
 const elements = {
   courseList: document.querySelector("#course-list"),
@@ -35,6 +43,8 @@ const elements = {
   settingsDialog: document.querySelector("#settings-dialog"),
   recalcDialog: document.querySelector("#recalc-dialog"),
   availabilityFields: document.querySelector("#availability-fields"),
+  weekPicker: document.querySelector("#week-picker"),
+  termDates: document.querySelector("#term-dates"),
 };
 
 let calendarView = "classes";
@@ -188,6 +198,9 @@ function activeCalendarSessions() {
 }
 
 function renderCalendar() {
+  const term = getAcademicTerm(plan, state.term);
+  const weekStart = state.calendarWeeks[state.term];
+  const weekDates = weekDatesForTerm(term, weekStart);
   const sessions = activeCalendarSessions();
   const classSessions = getActiveSessions(plan, state);
   const conflicts = findConflicts(classSessions, state.acceptedConflictIds);
@@ -202,7 +215,15 @@ function renderCalendar() {
   elements.calendar.classList.toggle("is-week", calendarView === "all");
   elements.calendar.innerHTML = `
     <div class="calendar-header"></div>
-    ${visibleDays.map((day) => `<div class="calendar-header">${day.short}</div>`).join("")}
+    ${visibleDays.map((day) => {
+      const date = weekDates[day.id - 1];
+      const label = new Intl.DateTimeFormat("es-ES", {
+        day: "numeric",
+        month: "short",
+        timeZone: "UTC",
+      }).format(parseISODate(date.date));
+      return `<div class="calendar-header ${!date.inTerm ? "is-outside-term" : ""} ${date.nonTeachingPeriod ? "is-non-teaching" : ""}">${day.short}<small>${label}</small>${date.nonTeachingPeriod ? `<span>${escapeHtml(date.nonTeachingPeriod.label)}</span>` : ""}</div>`;
+    }).join("")}
     <div class="time-axis">
       ${Array.from({ length: (end - start) / 60 + 1 }, (_, index) => {
         const minute = start + index * 60;
@@ -211,9 +232,11 @@ function renderCalendar() {
     </div>
     ${visibleDays
       .map(
-        (day) => `<div class="day-column" data-day="${day.id}">
+        (day) => {
+          const date = weekDates[day.id - 1];
+          return `<div class="day-column ${!date.inTerm ? "is-outside-term" : ""} ${date.nonTeachingPeriod ? "is-non-teaching" : ""}" data-day="${day.id}" data-date="${date.date}">
           ${sessions
-            .filter((session) => session.day === day.id)
+            .filter((session) => session.day === day.id && date.inTerm && !date.nonTeachingPeriod)
             .map((session) => {
               const top = (session.start - start) * pixelsPerMinute;
               const height = Math.max(32, (session.end - session.start) * pixelsPerMinute - 4);
@@ -228,7 +251,8 @@ function renderCalendar() {
               </div>`;
             })
             .join("")}
-        </div>`,
+        </div>`;
+        },
       )
       .join("")}`;
 
@@ -239,6 +263,19 @@ function renderCalendar() {
     );
   }
   renderConflicts(conflicts);
+}
+
+function renderCalendarNavigation() {
+  const term = getAcademicTerm(plan, state.term);
+  const first = firstWeekOfTerm(term);
+  const last = clampWeekToTerm(term, term.classEnd);
+  const current = state.calendarWeeks[state.term];
+  elements.weekPicker.min = first;
+  elements.weekPicker.max = last;
+  elements.weekPicker.value = current;
+  document.querySelector("#previous-month").disabled = current === first;
+  document.querySelector("#next-month").disabled = current === last;
+  elements.termDates.textContent = `Docencia: ${term.classStart}–${term.classEnd}. Los días sombreados son no lectivos o quedan fuera del cuatrimestre.`;
 }
 
 function renderConflicts(conflicts) {
@@ -432,6 +469,7 @@ function render() {
     `Horario · ${state.term}.º cuatrimestre`;
   renderCourses();
   renderCalendar();
+  renderCalendarNavigation();
   renderForms();
   renderTopics();
   renderTasks();
@@ -445,6 +483,8 @@ document.addEventListener("click", (event) => {
   if (termButton) {
     update(() => {
       state.term = Number(termButton.dataset.term);
+      const term = getAcademicTerm(plan, state.term);
+      state.calendarWeeks[state.term] = firstWeekOfTerm(term);
     });
     return;
   }
@@ -571,6 +611,28 @@ document.addEventListener("click", (event) => {
       );
     });
   }
+});
+
+function moveCalendarMonth(offset) {
+  update(() => {
+    const term = getAcademicTerm(plan, state.term);
+    const date = parseISODate(state.calendarWeeks[state.term]);
+    date.setUTCMonth(date.getUTCMonth() + offset);
+    state.calendarWeeks[state.term] = clampWeekToTerm(term, formatISODate(date));
+  });
+}
+
+document
+  .querySelector("#previous-month")
+  .addEventListener("click", () => moveCalendarMonth(-1));
+document
+  .querySelector("#next-month")
+  .addEventListener("click", () => moveCalendarMonth(1));
+elements.weekPicker.addEventListener("change", (event) => {
+  update(() => {
+    const term = getAcademicTerm(plan, state.term);
+    state.calendarWeeks[state.term] = clampWeekToTerm(term, event.target.value);
+  });
 });
 
 elements.courseList.addEventListener("change", (event) => {
