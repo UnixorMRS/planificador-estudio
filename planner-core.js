@@ -71,6 +71,7 @@ export function minutesToTime(value) {
 }
 
 export function createInitialState(plan) {
+  validatePlan(plan);
   const selections = Object.fromEntries(
     plan.courses.map((course) => [
       course.id,
@@ -85,6 +86,9 @@ export function createInitialState(plan) {
   return {
     version: STATE_VERSION,
     term: 1,
+    calendarWeeks: Object.fromEntries(
+      plan.academicTerms.map((term) => [term.id, firstWeekOfTerm(term)]),
+    ),
     selections,
     acceptedConflictIds: ["af-friday::ec-b2-practice"],
     topics: [],
@@ -120,6 +124,15 @@ export function hydrateState(plan, saved) {
     ...saved,
     selections,
     availability: { ...initial.availability, ...saved.availability },
+    calendarWeeks: Object.fromEntries(
+      plan.academicTerms.map((term) => [
+        term.id,
+        clampWeekToTerm(
+          term,
+          saved.calendarWeeks?.[term.id] ?? firstWeekOfTerm(term),
+        ),
+      ]),
+    ),
   };
 }
 

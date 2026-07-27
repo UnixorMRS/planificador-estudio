@@ -14,7 +14,14 @@ import {
   getWeekDates,
   getActiveSessions,
   hydrateState,
+  canCreateAcademicSession,
+  clampWeekToTerm,
+  getAcademicTerm,
+  isDateInTerm,
+  nonTeachingPeriodForDate,
   validateImportedState,
+  validatePlan,
+  weekDatesForTerm,
 } from "../planner-core.js";
 
 test("calcula una semana completa de lunes a domingo", () => {
@@ -44,6 +51,51 @@ test("la cuadrícula incluye semanas que atraviesan dos meses", () => {
 const plan = JSON.parse(
   await readFile(new URL("../data/planificacion.json", import.meta.url), "utf8"),
 );
+
+test("el calendario oficial tiene límites inclusivos", () => {
+  validatePlan(plan);
+  const first = getAcademicTerm(plan, 1);
+  assert.equal(isDateInTerm(first, "2026-09-14"), true);
+  assert.equal(isDateInTerm(first, "2026-12-22"), true);
+  assert.equal(isDateInTerm(first, "2026-09-13"), false);
+  assert.equal(isDateInTerm(first, "2026-12-23"), false);
+});
+
+test("una semana parcial conserva los días visibles y marca los que quedan fuera", () => {
+  const second = getAcademicTerm(plan, 2);
+  const dates = weekDatesForTerm(second, "2027-06-04");
+  assert.deepEqual(dates.map(({ date }) => date), [
+    "2027-05-31", "2027-06-01", "2027-06-02", "2027-06-03",
+    "2027-06-04", "2027-06-05", "2027-06-06",
+  ]);
+  assert.deepEqual(dates.map(({ inTerm }) => inTerm), [true, true, true, true, true, false, false]);
+  assert.equal(clampWeekToTerm(second, "2027-08-01"), "2027-05-31");
+});
+
+test("los periodos no lectivos se identifican sin sacarlos del cuatrimestre", () => {
+  const second = getAcademicTerm(plan, 2);
+  assert.equal(isDateInTerm(second, "2027-03-24"), true);
+  assert.match(nonTeachingPeriodForDate(second, "2027-03-24").label, /Santa/);
+  assert.equal(nonTeachingPeriodForDate(second, "2027-04-05"), undefined);
+});
+
+test("crear una sesión fuera del cuatrimestre exige confirmación expresa", () => {
+  assert.equal(canCreateAcademicSession(plan, 2, "2027-06-04"), true);
+  assert.equal(canCreateAcademicSession(plan, 2, "2027-06-05"), false);
+  assert.equal(canCreateAcademicSession(plan, 2, "2027-06-05", true), true);
+});
+
+test("la validación rechaza fechas imposibles, orden inverso y solapamientos", () => {
+  const invalidDate = structuredClone(plan);
+  invalidDate.academicTerms[0].classStart = "2026-02-30";
+  assert.throws(() => validatePlan(invalidDate), /ISO no válidas/);
+  const inverse = structuredClone(plan);
+  inverse.academicTerms[0].classEnd = inverse.academicTerms[0].classStart;
+  assert.throws(() => validatePlan(inverse), /debe preceder/);
+  const overlap = structuredClone(plan);
+  overlap.academicTerms[1].classStart = "2026-12-20";
+  assert.throws(() => validatePlan(overlap), /no solaparse/);
+});
 
 test("el estado inicial no adjudica ninguna optativa", () => {
   const state = createInitialState(plan);
