@@ -43,3 +43,18 @@ test("enlaza los selectores de cuatrimestre y los días mensuales", async () => 
   assert.match(source, /data-date=/);
   assert.match(source, /openCalendarActivityForm\(activityDate\)/);
 });
+
+
+test("el glosario separa teoría y prácticas y conserva el color de asignatura", async () => {
+  const [html, source] = await Promise.all([
+    readFile(new URL("../index.html", import.meta.url), "utf8"),
+    readFile(new URL("../app.js", import.meta.url), "utf8"),
+  ]);
+  assert.match(html, /id="topic-glossary-list"/);
+  assert.match(html, /name="component"/);
+  assert.match(source, /data-topic-component="\$\{kind\}"/);
+  assert.match(source, /component\("theory", "Teoría"\)/);
+  assert.match(source, /component\("practice", "Prácticas"\)/);
+  assert.match(source, /--course-color: \$\{escapeHtml\(course.color\)\}/);
+  assert.match(source, /data-course-color="\$\{escapeHtml\(course.color\)\}"/);
+});

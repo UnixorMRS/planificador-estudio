@@ -15,6 +15,7 @@ import {
   dateForWeekDay,
   dateToDay,
   minutesToTime,
+  topicProgress,
   timeToMinutes,
   startOfWeek,
   sortActivitiesByStartTime,
@@ -37,6 +38,8 @@ const elements = {
   notice: document.querySelector("#notice"),
   topicForm: document.querySelector("#topic-form"),
   topicList: document.querySelector("#topic-list"),
+  topicGlossaryList: document.querySelector("#topic-glossary-list"),
+  officialLinkList: document.querySelector("#official-link-list"),
   taskForm: document.querySelector("#task-form"),
   taskList: document.querySelector("#task-list"),
   suggestionList: document.querySelector("#suggestion-list"),
@@ -413,7 +416,7 @@ function renderTopics() {
       return `<div class="list-item">
         <div>
           <strong>${escapeHtml(topic.name)}</strong>
-          <small>${escapeHtml(course?.abbreviation ?? "")} · dificultad ${topic.difficulty}/5</small>
+          <small>${escapeHtml(course?.abbreviation ?? "")} · ${topic.component === "practice" ? "Práctica" : "Teoría"} · dificultad ${topic.difficulty}/5</small>
         </div>
         <div class="mastery">
           <label>Dominio
@@ -428,6 +431,32 @@ function renderTopics() {
       </div>`;
     })
     .join("");
+}
+
+function renderOfficialLinks() {
+  elements.officialLinkList.innerHTML = plan.sources.map((source) =>
+    `<a href="${escapeHtml(source.url)}" target="_blank" rel="noreferrer">${escapeHtml(source.name)} <span aria-hidden="true">↗</span></a>`,
+  ).join("");
+}
+
+function renderTopicGlossaries() {
+  const courses = plan.courses.filter((course) => course.term === state.term);
+  elements.topicGlossaryList.innerHTML = courses.map((course) => {
+    const topics = state.topics.filter((topic) => topic.courseId === course.id);
+    const progress = topicProgress(topics);
+    const component = (kind, title) => {
+      const items = topics.filter((topic) => topic.component === kind);
+      return `<section class="glossary-component" data-topic-component="${kind}"><h4>${title} <span>${items.length}</span></h4>${items.length
+        ? `<ul>${items.map((topic) => `<li><span>${escapeHtml(topic.name)}</span><span class="mastery-status" data-mastery="${topic.mastery}">${topic.mastery}/4 · ${["Nuevo", "Inicial", "En proceso", "Sólido", "Dominado"][topic.mastery]}</span></li>`).join("")}</ul>`
+        : `<p class="glossary-empty">Sin elementos de ${title.toLowerCase()}.</p>`}</section>`;
+    };
+    return `<article class="glossary-card" style="--course-color: ${escapeHtml(course.color)}" data-course-color="${escapeHtml(course.color)}">
+      <header><span class="course-color-marker" aria-hidden="true"></span><div><strong>${escapeHtml(course.name)}</strong><small>${escapeHtml(course.abbreviation)}</small></div><b>${progress}%</b></header>
+      <div class="progress-label"><span>Dominio agregado</span><span>${progress} de 100</span></div>
+      <div class="progress-track" role="progressbar" aria-label="Dominio de ${escapeHtml(course.name)}" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${progress}"><span style="width:${progress}%"></span></div>
+      <div class="glossary-components">${component("theory", "Teoría")}${component("practice", "Prácticas")}</div>
+    </article>`;
+  }).join("");
 }
 
 function renderTasks() {
@@ -544,6 +573,8 @@ function render() {
   renderCalendar();
   renderForms();
   renderTopics();
+  renderTopicGlossaries();
+  renderOfficialLinks();
   renderTasks();
   renderSuggestions();
   renderMetrics();
@@ -814,6 +845,7 @@ elements.topicForm.addEventListener("submit", (event) => {
         courseId: data.get("courseId"),
         name: data.get("name").trim(),
         difficulty: Number(data.get("difficulty")),
+        component: data.get("component"),
         mastery: 0,
       });
       event.currentTarget.reset();

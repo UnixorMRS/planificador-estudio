@@ -106,6 +106,16 @@
 
       <div id="notice" class="notice" role="status" hidden></div>
 
+      <section class="official-links panel" aria-labelledby="official-links-title">
+        <div class="section-heading"><div><p class="section-label">Fuentes</p><h2 id="official-links-title">Enlaces oficiales</h2></div></div>
+        <div id="official-link-list" class="official-link-list"></div>
+      </section>
+
+      <section class="topic-glossaries" aria-labelledby="topic-glossaries-title">
+        <div class="glossary-heading"><div><p class="section-label">Vista resumida</p><h2 id="topic-glossaries-title">Glosario por asignatura</h2></div><p>Gestiona los elementos y su dominio en el editor “Temario y dominio”.</p></div>
+        <div id="topic-glossary-list" class="glossary-grid"></div>
+      </section>
+
       <section class="workspace" id="planning-options">
         <aside class="sidebar">
           <div class="section-heading">
@@ -139,6 +149,9 @@
           <form id="topic-form" class="compact-form">
             <label>Asignatura<select name="courseId" required></select></label>
             <label class="field-grow">Tema<input name="name" required placeholder="p. ej. Memoria caché" /></label>
+            <label>Componente<select name="component" required>
+              <option value="theory">Teoría</option><option value="practice">Práctica</option>
+            </select></label>
             <label>Dificultad<select name="difficulty">
               <option value="1">1</option><option value="2">2</option>
               <option value="3" selected>3</option><option value="4">4</option>
