@@ -9,10 +9,37 @@ import {
   evaluateCourseAlternatives,
   findConflicts,
   generateStudySuggestions,
+  getCalendarWeeks,
+  getMonthBounds,
+  getWeekDates,
   getActiveSessions,
   hydrateState,
   validateImportedState,
 } from "../planner-core.js";
+
+test("calcula una semana completa de lunes a domingo", () => {
+  assert.deepEqual(getWeekDates("2026-07-27"), [
+    "2026-07-27", "2026-07-28", "2026-07-29", "2026-07-30",
+    "2026-07-31", "2026-08-01", "2026-08-02",
+  ]);
+});
+
+test("calcula los límites exactos de meses normales y bisiestos", () => {
+  assert.deepEqual(getMonthBounds("2026-02"), { start: "2026-02-01", end: "2026-02-28" });
+  assert.deepEqual(getMonthBounds("2028-02"), { start: "2028-02-01", end: "2028-02-29" });
+});
+
+test("la cuadrícula incluye semanas que atraviesan dos meses", () => {
+  const weeks = getCalendarWeeks("2026-08");
+  assert.deepEqual(weeks[0], [
+    "2026-07-27", "2026-07-28", "2026-07-29", "2026-07-30",
+    "2026-07-31", "2026-08-01", "2026-08-02",
+  ]);
+  assert.deepEqual(weeks.at(-1), [
+    "2026-08-31", "2026-09-01", "2026-09-02", "2026-09-03",
+    "2026-09-04", "2026-09-05", "2026-09-06",
+  ]);
+});
 
 const plan = JSON.parse(
   await readFile(new URL("../data/planificacion.json", import.meta.url), "utf8"),

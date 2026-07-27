@@ -11,6 +11,54 @@ export const DAYS = [
 export const STORAGE_KEY = "planificador-estudio:v2";
 export const STATE_VERSION = 2;
 
+const DAY_MS = 86_400_000;
+
+/** Parse and format calendar dates without depending on the browser timezone. */
+export function parseISODate(value) {
+  const [year, month, day] = value.split("-").map(Number);
+  return new Date(Date.UTC(year, month - 1, day));
+}
+
+export function toISODate(date) {
+  return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, "0")}-${String(date.getUTCDate()).padStart(2, "0")}`;
+}
+
+export function addCalendarDays(value, amount) {
+  const date = typeof value === "string" ? parseISODate(value) : new Date(value);
+  date.setUTCDate(date.getUTCDate() + amount);
+  return toISODate(date);
+}
+
+export function startOfWeek(value) {
+  const date = typeof value === "string" ? parseISODate(value) : new Date(value);
+  const mondayOffset = (date.getUTCDay() + 6) % 7;
+  return addCalendarDays(date, -mondayOffset);
+}
+
+export function getWeekDates(value) {
+  const monday = startOfWeek(value);
+  return Array.from({ length: 7 }, (_, index) => addCalendarDays(monday, index));
+}
+
+export function getMonthBounds(monthValue) {
+  const month = parseISODate(`${monthValue.slice(0, 7)}-01`);
+  const start = toISODate(month);
+  month.setUTCMonth(month.getUTCMonth() + 1);
+  month.setUTCDate(0);
+  return { start, end: toISODate(month) };
+}
+
+/** Complete Monday-to-Sunday rows covering the visible month. */
+export function getCalendarWeeks(monthValue) {
+  const { start, end } = getMonthBounds(monthValue);
+  const first = startOfWeek(start);
+  const last = addCalendarDays(startOfWeek(end), 6);
+  const count = Math.round((parseISODate(last) - parseISODate(first)) / DAY_MS) + 1;
+  return Array.from({ length: count / 7 }, (_, week) =>
+    getWeekDates(addCalendarDays(first, week * 7)),
+  );
+}
+
 export function timeToMinutes(value) {
   const [hours, minutes] = value.split(":").map(Number);
   return hours * 60 + minutes;
@@ -230,6 +278,7 @@ export function generateStudySuggestions(plan, state, options = {}) {
   const term = options.term ?? state.term;
   const maxSuggestions = options.maxSuggestions ?? 8;
   const duration = options.duration ?? 60;
+  const weekStart = options.weekStart ? startOfWeek(options.weekStart) : null;
   const accepted =
     options.preserveAccepted === false
       ? []
@@ -303,6 +352,7 @@ export function generateStudySuggestions(plan, state, options = {}) {
       suggestions.push({
         id: cryptoSafeId("suggestion"),
         day: slot.day,
+        date: weekStart ? addCalendarDays(weekStart, slot.day - 1) : undefined,
         start: slot.start,
         end: slot.start + sessionDuration,
         courseId: candidate.courseId,
