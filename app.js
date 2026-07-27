@@ -1,14 +1,18 @@
 import {
   DAYS,
   STORAGE_KEY,
+  aggregateStudyTime,
   canAwardElective,
   createInitialState,
   cryptoSafeId,
+  dateForWeekDay,
   electiveCredits,
   evaluateCourseAlternatives,
   findConflicts,
+  filterTimeHistory,
   generateStudySuggestions,
   getActiveSessions,
+  getWeekRange,
   hydrateState,
   minutesToTime,
   timeToMinutes,
@@ -35,9 +39,14 @@ const elements = {
   settingsDialog: document.querySelector("#settings-dialog"),
   recalcDialog: document.querySelector("#recalc-dialog"),
   availabilityFields: document.querySelector("#availability-fields"),
+  timeSummary: document.querySelector("#time-summary-table"),
+  selectedWeek: document.querySelector("#selected-week"),
+  historyForm: document.querySelector("#history-form"),
+  historyList: document.querySelector("#history-list"),
 };
 
 let calendarView = "classes";
+let selectedWeek = getWeekRange(new Date()).start;
 let state = loadState();
 
 function loadState() {
@@ -275,16 +284,66 @@ function renderForms() {
   const options = courseOptions();
   const topicSelect = elements.topicForm.elements.courseId;
   const taskSelect = elements.taskForm.elements.courseId;
+  const historySelect = elements.historyForm.elements.courseId;
   const topicValue = topicSelect.value;
   const taskValue = taskSelect.value;
   topicSelect.innerHTML = options;
   taskSelect.innerHTML = options;
+  historySelect.innerHTML = options;
   if ([...topicSelect.options].some((option) => option.value === topicValue)) {
     topicSelect.value = topicValue;
   }
   if ([...taskSelect.options].some((option) => option.value === taskValue)) {
     taskSelect.value = taskValue;
   }
+}
+
+function formatMinutes(minutes) {
+  const hours = Math.floor(minutes / 60);
+  const remainder = minutes % 60;
+  return hours ? `${hours} h${remainder ? ` ${remainder} min` : ""}` : `${remainder} min`;
+}
+
+function timeValues(values) {
+  return `<span class="time-kind time-kind--planned" title="Planificado">P ${formatMinutes(values.planned)}</span>
+    <span class="time-kind time-kind--estimated" title="Estimado">E ${formatMinutes(values.estimated)}</span>
+    <span class="time-kind time-kind--actual" title="Registrado">R ${formatMinutes(values.actual)}</span>`;
+}
+
+function renderTimeSummary() {
+  const summary = aggregateStudyTime(plan, state, { term: state.term, weekStart: selectedWeek });
+  elements.selectedWeek.value = summary.week.start;
+  elements.timeSummary.innerHTML = `<table>
+    <thead><tr><th>Asignatura</th><th>Esta semana<br><small>${summary.week.start} — ${summary.week.end}</small></th><th>Total del cuatrimestre</th></tr></thead>
+    <tbody>${summary.rows.map((row) => `<tr><th data-label="Asignatura">${escapeHtml(row.abbreviation)}<small>${escapeHtml(row.courseName)}</small></th><td data-label="Esta semana">${timeValues(row.week)}</td><td data-label="Total del cuatrimestre">${timeValues(row.term)}</td></tr>`).join("")}</tbody>
+    <tfoot><tr><th data-label="Asignatura">Total general</th><td data-label="Esta semana">${timeValues(summary.totals.week)}</td><td data-label="Total del cuatrimestre">${timeValues(summary.totals.term)}</td></tr></tfoot>
+  </table>`;
+}
+
+function historyFilters() {
+  return {
+    term: document.querySelector("#history-term").value,
+    courseId: document.querySelector("#history-course").value,
+    from: document.querySelector("#history-from").value,
+    to: document.querySelector("#history-to").value,
+  };
+}
+
+function renderHistory() {
+  const courseFilter = document.querySelector("#history-course");
+  const previous = courseFilter.value;
+  courseFilter.innerHTML = `<option value="">Todas</option>${plan.courses.map((course) => `<option value="${course.id}">${escapeHtml(course.abbreviation)}</option>`).join("")}`;
+  courseFilter.value = previous;
+  const entries = filterTimeHistory(state.timeHistory, historyFilters());
+  const grouping = document.querySelector("#history-group").value;
+  const groups = new Map();
+  entries.forEach((entry) => {
+    const key = grouping === "week" ? `Semana del ${getWeekRange(entry.date).start}` : grouping === "course" ? courseById(entry.courseId)?.name ?? entry.courseId : "Historial";
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(entry);
+  });
+  elements.historyList.className = entries.length ? "history-list" : "history-list empty-copy";
+  elements.historyList.innerHTML = entries.length ? [...groups].map(([label, items]) => `<section class="history-group"><h3>${escapeHtml(label)}</h3>${items.map((entry) => `<article class="history-entry"><div><time datetime="${entry.date}">${entry.date}</time><strong>${escapeHtml(courseById(entry.courseId)?.abbreviation ?? entry.courseId)}</strong><span>${formatMinutes(entry.durationMinutes)}</span></div><p>${escapeHtml(entry.note || "Sin nota")}</p><small>Origen: ${escapeHtml(entry.origin)}</small><span class="item-actions"><button class="button button--small button--ghost" data-edit-history="${entry.id}">Editar</button><button class="icon-button" data-delete-history="${entry.id}" aria-label="Eliminar registro">×</button></span></article>`).join("")}</section>`).join("") : "No hay registros que coincidan con los filtros.";
 }
 
 function renderTopics() {
@@ -373,8 +432,8 @@ function suggestionCard(session, accepted = false) {
 
 function renderSuggestions() {
   const content = [
-    ...state.studySessions.map((session) => suggestionCard(session, true)),
-    ...state.suggestions.map((session) => suggestionCard(session, false)),
+    ...state.studySessions.filter((session) => session.term === state.term).map((session) => suggestionCard(session, true)),
+    ...state.suggestions.filter((session) => session.term === state.term).map((session) => suggestionCard(session, false)),
   ];
   elements.suggestionList.className = content.length
     ? "suggestion-grid"
@@ -430,6 +489,9 @@ function render() {
   });
   document.querySelector("#calendar-title").textContent =
     `Horario · ${state.term}.º cuatrimestre`;
+  if (!elements.historyForm.elements.date.value) {
+    elements.historyForm.elements.date.value = selectedWeek;
+  }
   renderCourses();
   renderCalendar();
   renderForms();
@@ -437,10 +499,27 @@ function render() {
   renderTasks();
   renderSuggestions();
   renderMetrics();
+  renderTimeSummary();
+  renderHistory();
   renderAvailability();
 }
 
 document.addEventListener("click", (event) => {
+  const editHistory = event.target.closest("[data-edit-history]");
+  if (editHistory) {
+    editHistoryEntry(editHistory.dataset.editHistory);
+    return;
+  }
+  const deleteHistory = event.target.closest("[data-delete-history]");
+  if (deleteHistory) {
+    update(() => {
+      state.timeHistory = state.timeHistory.filter(
+        ({ id }) => id !== deleteHistory.dataset.deleteHistory,
+      );
+    });
+    return;
+  }
+
   const termButton = event.target.closest("[data-term]");
   if (termButton) {
     update(() => {
@@ -511,6 +590,8 @@ document.addEventListener("click", (event) => {
         ...session,
         id: cryptoSafeId("study"),
         term: state.term,
+        weekStart: selectedWeek,
+        date: dateForWeekDay(selectedWeek, session.day),
         kind: "study",
       });
       const task = state.tasks.find(({ id }) => id === session.sourceId);
@@ -572,6 +653,61 @@ document.addEventListener("click", (event) => {
     });
   }
 });
+
+elements.historyForm.addEventListener("submit", (event) => {
+  event.preventDefault();
+  const data = new FormData(event.currentTarget);
+  const course = courseById(data.get("courseId"));
+  update(() => {
+    state.timeHistory.push({
+      id: cryptoSafeId("history"),
+      term: course.term,
+      courseId: course.id,
+      date: data.get("date"),
+      durationMinutes: Number(data.get("durationMinutes")),
+      note: data.get("note").trim(),
+      origin: data.get("origin"),
+    });
+    event.currentTarget.reset();
+    event.currentTarget.elements.date.value = selectedWeek;
+    event.currentTarget.elements.durationMinutes.value = 60;
+  });
+});
+
+document.querySelectorAll("#history-term, #history-course, #history-from, #history-to, #history-group").forEach((control) => {
+  control.addEventListener("change", renderHistory);
+});
+
+elements.selectedWeek.addEventListener("change", () => {
+  if (!elements.selectedWeek.value) return;
+  selectedWeek = getWeekRange(elements.selectedWeek.value).start;
+  renderTimeSummary();
+});
+
+function moveWeek(days) {
+  const date = new Date(`${selectedWeek}T12:00:00`);
+  date.setDate(date.getDate() + days);
+  selectedWeek = getWeekRange(date).start;
+  renderTimeSummary();
+}
+document.querySelector("#previous-week").addEventListener("click", () => moveWeek(-7));
+document.querySelector("#next-week").addEventListener("click", () => moveWeek(7));
+
+function editHistoryEntry(id) {
+  const entry = state.timeHistory.find((item) => item.id === id);
+  if (!entry) return;
+  const value = window.prompt("Duración en minutos y nota, separados por coma:", `${entry.durationMinutes}, ${entry.note}`);
+  if (!value) return;
+  const [duration, ...note] = value.split(",");
+  if (!Number.isFinite(Number(duration)) || Number(duration) <= 0) {
+    announce("La duración debe ser un número positivo.");
+    return;
+  }
+  update(() => {
+    entry.durationMinutes = Number(duration);
+    entry.note = note.join(",").trim();
+  });
+}
 
 elements.courseList.addEventListener("change", (event) => {
   const activeId = event.target.dataset.courseActive;
@@ -785,7 +921,12 @@ document.querySelector("#save-settings").addEventListener("click", (event) => {
 });
 
 document.querySelector("#export-button").addEventListener("click", () => {
-  const blob = new Blob([JSON.stringify(state, null, 2)], {
+  const exportedState = {
+    ...state,
+    timeHistory: [...state.timeHistory],
+    exportMetadata: { exportedAt: new Date().toISOString(), includesCompleteHistory: true },
+  };
+  const blob = new Blob([JSON.stringify(exportedState, null, 2)], {
     type: "application/json",
   });
   const link = document.createElement("a");

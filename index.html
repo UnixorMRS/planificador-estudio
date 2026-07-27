@@ -94,7 +94,41 @@
           <div class="calendar-scroll">
             <div id="calendar" class="calendar" aria-label="Calendario semanal"></div>
           </div>
+          <section class="time-summary" aria-labelledby="time-summary-title">
+            <div class="section-heading time-summary__heading">
+              <div><p class="section-label">Carga de estudio</p><h2 id="time-summary-title">Resumen de tiempo</h2></div>
+              <div class="week-navigation">
+                <button class="icon-button" id="previous-week" type="button" aria-label="Semana anterior">‹</button>
+                <label>Semana de <input id="selected-week" type="date" /></label>
+                <button class="icon-button" id="next-week" type="button" aria-label="Semana siguiente">›</button>
+              </div>
+            </div>
+            <p class="time-legend"><span class="time-kind time-kind--planned">Planificado</span><span class="time-kind time-kind--estimated">Estimado</span><span class="time-kind time-kind--actual">Registrado</span></p>
+            <div id="time-summary-table" class="responsive-table"></div>
+          </section>
         </section>
+      </section>
+
+      <section class="panel history-panel" aria-labelledby="history-title">
+        <div class="section-heading">
+          <div><p class="section-label">Seguimiento real</p><h2 id="history-title">Historial de tiempo</h2></div>
+        </div>
+        <form id="history-form" class="compact-form history-form">
+          <label>Fecha<input name="date" type="date" required /></label>
+          <label>Asignatura<select name="courseId" required></select></label>
+          <label>Duración (min)<input name="durationMinutes" type="number" min="1" value="60" required /></label>
+          <label>Origen<select name="origin"><option value="manual">Manual</option><option value="timer">Temporizador</option><option value="imported">Importado</option></select></label>
+          <label class="field-grow">Nota<input name="note" placeholder="Qué has trabajado" /></label>
+          <button class="button" type="submit">Registrar</button>
+        </form>
+        <div class="history-filters" aria-label="Filtros del historial">
+          <label>Cuatrimestre<select id="history-term"><option value="">Todos</option><option value="1">1.º</option><option value="2">2.º</option></select></label>
+          <label>Asignatura<select id="history-course"><option value="">Todas</option></select></label>
+          <label>Desde<input id="history-from" type="date" /></label>
+          <label>Hasta<input id="history-to" type="date" /></label>
+          <label>Agrupar<select id="history-group"><option value="week">Semana</option><option value="course">Asignatura</option><option value="none">Sin agrupar</option></select></label>
+        </div>
+        <div id="history-list" class="history-list empty-copy">Aún no hay tiempo registrado.</div>
       </section>
 
       <section class="lower-grid">
